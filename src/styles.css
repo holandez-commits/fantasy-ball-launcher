@@ -148,7 +148,13 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.6 0.18 25);
   --court: oklch(0.6 0.2 25);
+  --court-bright: oklch(0.7 0.22 25);
   --gold: oklch(0.78 0.14 85);
+  --chrome: oklch(0.12 0.01 270);
+  --chrome-foreground: oklch(0.97 0.005 80);
+  --chrome-muted: oklch(0.62 0.015 270);
+  --chrome-border: oklch(1 0 0 / 8%);
+  --chrome-hover: oklch(1 0 0 / 6%);
   --chart-1: oklch(0.6 0.2 25);
   --chart-2: oklch(0.78 0.14 85);
   --chart-3: oklch(0.55 0.1 250);
