@@ -14,16 +14,215 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      gms: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          full_name: string
+          id: string
+          joined_year: number | null
+          nickname: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          full_name: string
+          id?: string
+          joined_year?: number | null
+          nickname?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          joined_year?: number | null
+          nickname?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      players: {
+        Row: {
+          bye_week: number | null
+          created_at: string
+          full_name: string
+          id: string
+          jersey_number: number | null
+          nfl_team: string | null
+          position: string
+          updated_at: string
+        }
+        Insert: {
+          bye_week?: number | null
+          created_at?: string
+          full_name: string
+          id?: string
+          jersey_number?: number | null
+          nfl_team?: string | null
+          position: string
+          updated_at?: string
+        }
+        Update: {
+          bye_week?: number | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          jersey_number?: number | null
+          nfl_team?: string | null
+          position?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      roster_entries: {
+        Row: {
+          acquired_via: string | null
+          created_at: string
+          id: string
+          player_id: string
+          season: number
+          slot: string
+          status: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          acquired_via?: string | null
+          created_at?: string
+          id?: string
+          player_id: string
+          season: number
+          slot?: string
+          status?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          acquired_via?: string | null
+          created_at?: string
+          id?: string
+          player_id?: string
+          season?: number
+          slot?: string
+          status?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roster_entries_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_entries_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          abbreviation: string
+          city: string | null
+          created_at: string
+          founded_year: number | null
+          gm_id: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          primary_color: string | null
+          secondary_color: string | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          abbreviation: string
+          city?: string | null
+          created_at?: string
+          founded_year?: number | null
+          gm_id?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          primary_color?: string | null
+          secondary_color?: string | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          abbreviation?: string
+          city?: string | null
+          created_at?: string
+          founded_year?: number | null
+          gm_id?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          primary_color?: string | null
+          secondary_color?: string | null
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_gm_id_fkey"
+            columns: ["gm_id"]
+            isOneToOne: false
+            referencedRelation: "gms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "editor" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +349,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "editor", "viewer"],
+    },
   },
 } as const
