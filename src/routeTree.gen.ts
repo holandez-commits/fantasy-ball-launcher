@@ -9,8 +9,56 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RegrasRouteImport } from './routes/regras'
+import { Route as RecordesRouteImport } from './routes/recordes'
+import { Route as NoticiasRouteImport } from './routes/noticias'
+import { Route as MediasRouteImport } from './routes/medias'
+import { Route as EscalacoesRouteImport } from './routes/escalacoes'
+import { Route as ElencosRouteImport } from './routes/elencos'
+import { Route as ClassificacaoRouteImport } from './routes/classificacao'
+import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RegrasRoute = RegrasRouteImport.update({
+  id: '/regras',
+  path: '/regras',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecordesRoute = RecordesRouteImport.update({
+  id: '/recordes',
+  path: '/recordes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NoticiasRoute = NoticiasRouteImport.update({
+  id: '/noticias',
+  path: '/noticias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MediasRoute = MediasRouteImport.update({
+  id: '/medias',
+  path: '/medias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EscalacoesRoute = EscalacoesRouteImport.update({
+  id: '/escalacoes',
+  path: '/escalacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ElencosRoute = ElencosRouteImport.update({
+  id: '/elencos',
+  path: '/elencos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClassificacaoRoute = ClassificacaoRouteImport.update({
+  id: '/classificacao',
+  path: '/classificacao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarioRoute = CalendarioRouteImport.update({
+  id: '/calendario',
+  path: '/calendario',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +67,144 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/calendario': typeof CalendarioRoute
+  '/classificacao': typeof ClassificacaoRoute
+  '/elencos': typeof ElencosRoute
+  '/escalacoes': typeof EscalacoesRoute
+  '/medias': typeof MediasRoute
+  '/noticias': typeof NoticiasRoute
+  '/recordes': typeof RecordesRoute
+  '/regras': typeof RegrasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/calendario': typeof CalendarioRoute
+  '/classificacao': typeof ClassificacaoRoute
+  '/elencos': typeof ElencosRoute
+  '/escalacoes': typeof EscalacoesRoute
+  '/medias': typeof MediasRoute
+  '/noticias': typeof NoticiasRoute
+  '/recordes': typeof RecordesRoute
+  '/regras': typeof RegrasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/calendario': typeof CalendarioRoute
+  '/classificacao': typeof ClassificacaoRoute
+  '/elencos': typeof ElencosRoute
+  '/escalacoes': typeof EscalacoesRoute
+  '/medias': typeof MediasRoute
+  '/noticias': typeof NoticiasRoute
+  '/recordes': typeof RecordesRoute
+  '/regras': typeof RegrasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/calendario'
+    | '/classificacao'
+    | '/elencos'
+    | '/escalacoes'
+    | '/medias'
+    | '/noticias'
+    | '/recordes'
+    | '/regras'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/calendario'
+    | '/classificacao'
+    | '/elencos'
+    | '/escalacoes'
+    | '/medias'
+    | '/noticias'
+    | '/recordes'
+    | '/regras'
+  id:
+    | '__root__'
+    | '/'
+    | '/calendario'
+    | '/classificacao'
+    | '/elencos'
+    | '/escalacoes'
+    | '/medias'
+    | '/noticias'
+    | '/recordes'
+    | '/regras'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CalendarioRoute: typeof CalendarioRoute
+  ClassificacaoRoute: typeof ClassificacaoRoute
+  ElencosRoute: typeof ElencosRoute
+  EscalacoesRoute: typeof EscalacoesRoute
+  MediasRoute: typeof MediasRoute
+  NoticiasRoute: typeof NoticiasRoute
+  RecordesRoute: typeof RecordesRoute
+  RegrasRoute: typeof RegrasRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/regras': {
+      id: '/regras'
+      path: '/regras'
+      fullPath: '/regras'
+      preLoaderRoute: typeof RegrasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recordes': {
+      id: '/recordes'
+      path: '/recordes'
+      fullPath: '/recordes'
+      preLoaderRoute: typeof RecordesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/noticias': {
+      id: '/noticias'
+      path: '/noticias'
+      fullPath: '/noticias'
+      preLoaderRoute: typeof NoticiasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/medias': {
+      id: '/medias'
+      path: '/medias'
+      fullPath: '/medias'
+      preLoaderRoute: typeof MediasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/escalacoes': {
+      id: '/escalacoes'
+      path: '/escalacoes'
+      fullPath: '/escalacoes'
+      preLoaderRoute: typeof EscalacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/elencos': {
+      id: '/elencos'
+      path: '/elencos'
+      fullPath: '/elencos'
+      preLoaderRoute: typeof ElencosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/classificacao': {
+      id: '/classificacao'
+      path: '/classificacao'
+      fullPath: '/classificacao'
+      preLoaderRoute: typeof ClassificacaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendario': {
+      id: '/calendario'
+      path: '/calendario'
+      fullPath: '/calendario'
+      preLoaderRoute: typeof CalendarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,6 +217,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CalendarioRoute: CalendarioRoute,
+  ClassificacaoRoute: ClassificacaoRoute,
+  ElencosRoute: ElencosRoute,
+  EscalacoesRoute: EscalacoesRoute,
+  MediasRoute: MediasRoute,
+  NoticiasRoute: NoticiasRoute,
+  RecordesRoute: RecordesRoute,
+  RegrasRoute: RegrasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
