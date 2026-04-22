@@ -1,5 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { SiteHeader } from "../components/SiteHeader";
+import { AppSidebar } from "../components/AppSidebar";
 import { SiteFooter } from "../components/SiteFooter";
 
 import appCss from "../styles.css?url";
@@ -79,10 +80,15 @@ function RootComponent() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <SiteHeader />
-      <main className="flex-1">
-        <Outlet />
-      </main>
-      <SiteFooter />
+      <div className="flex flex-1">
+        <AppSidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <SiteFooter />
+        </div>
+      </div>
     </div>
   );
 }

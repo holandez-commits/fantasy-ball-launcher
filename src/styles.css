@@ -58,44 +58,58 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-court: var(--court);
+  --color-court-bright: var(--court-bright);
   --color-gold: var(--gold);
+  --color-chrome: var(--chrome);
+  --color-chrome-foreground: var(--chrome-foreground);
+  --color-chrome-muted: var(--chrome-muted);
+  --color-chrome-border: var(--chrome-border);
+  --color-chrome-hover: var(--chrome-hover);
 }
 
 :root {
   --radius: 0.5rem;
 
-  /* Off-white papel + ink quase preto */
-  --background: oklch(0.985 0.004 80);
-  --foreground: oklch(0.18 0.02 270);
+  /* Conteúdo: fundo levemente off-white, tinta quase preta */
+  --background: oklch(0.985 0.003 80);
+  --foreground: oklch(0.18 0.015 270);
 
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 270);
+  --card-foreground: oklch(0.18 0.015 270);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 270);
+  --popover-foreground: oklch(0.18 0.015 270);
 
-  /* Primary = ink (tipografia, botões principais) */
-  --primary: oklch(0.18 0.02 270);
-  --primary-foreground: oklch(0.985 0.004 80);
+  /* Primary = vermelho-court (botões principais, links de destaque) */
+  --primary: oklch(0.5 0.18 25);
+  --primary-foreground: oklch(0.985 0.003 80);
 
-  --secondary: oklch(0.95 0.005 80);
-  --secondary-foreground: oklch(0.18 0.02 270);
+  --secondary: oklch(0.95 0.004 270);
+  --secondary-foreground: oklch(0.18 0.015 270);
 
-  --muted: oklch(0.95 0.005 80);
-  --muted-foreground: oklch(0.45 0.015 270);
+  --muted: oklch(0.96 0.003 270);
+  --muted-foreground: oklch(0.48 0.01 270);
 
-  --accent: oklch(0.93 0.01 80);
-  --accent-foreground: oklch(0.18 0.02 270);
+  --accent: oklch(0.94 0.005 270);
+  --accent-foreground: oklch(0.18 0.015 270);
 
   --destructive: oklch(0.55 0.22 27);
-  --destructive-foreground: oklch(0.985 0.004 80);
+  --destructive-foreground: oklch(0.985 0.003 80);
 
-  --border: oklch(0.9 0.008 80);
-  --input: oklch(0.9 0.008 80);
-  --ring: oklch(0.45 0.15 25);
+  --border: oklch(0.9 0.005 270);
+  --input: oklch(0.9 0.005 270);
+  --ring: oklch(0.5 0.18 25);
 
-  /* Accents da liga */
-  --court: oklch(0.5 0.18 25);   /* vermelho profundo NBA-court */
-  --gold: oklch(0.75 0.13 85);   /* dourado sutil do logo */
+  /* Cromos da liga */
+  --court: oklch(0.5 0.18 25);    /* vermelho profundo NBA-court */
+  --court-bright: oklch(0.62 0.22 25); /* vermelho mais vivo p/ acentos sobre fundo escuro */
+  --gold: oklch(0.78 0.13 85);
+
+  /* Chrome (header + sidebar) — preto profundo */
+  --chrome: oklch(0.16 0.01 270);
+  --chrome-foreground: oklch(0.97 0.005 80);
+  --chrome-muted: oklch(0.62 0.015 270);
+  --chrome-border: oklch(1 0 0 / 8%);
+  --chrome-hover: oklch(1 0 0 / 6%);
 
   --chart-1: oklch(0.5 0.18 25);
   --chart-2: oklch(0.75 0.13 85);
@@ -134,7 +148,13 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.6 0.18 25);
   --court: oklch(0.6 0.2 25);
+  --court-bright: oklch(0.7 0.22 25);
   --gold: oklch(0.78 0.14 85);
+  --chrome: oklch(0.12 0.01 270);
+  --chrome-foreground: oklch(0.97 0.005 80);
+  --chrome-muted: oklch(0.62 0.015 270);
+  --chrome-border: oklch(1 0 0 / 8%);
+  --chrome-hover: oklch(1 0 0 / 6%);
   --chart-1: oklch(0.6 0.2 25);
   --chart-2: oklch(0.78 0.14 85);
   --chart-3: oklch(0.55 0.1 250);
