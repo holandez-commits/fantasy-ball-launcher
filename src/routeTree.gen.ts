@@ -13,8 +13,11 @@ import { Route as RegrasRouteImport } from './routes/regras'
 import { Route as RecordesRouteImport } from './routes/recordes'
 import { Route as NoticiasRouteImport } from './routes/noticias'
 import { Route as MediasRouteImport } from './routes/medias'
+import { Route as GmsRouteImport } from './routes/gms'
+import { Route as FreeAgentsRouteImport } from './routes/free-agents'
 import { Route as EscalacoesRouteImport } from './routes/escalacoes'
 import { Route as ElencosRouteImport } from './routes/elencos'
+import { Route as DraftRouteImport } from './routes/draft'
 import { Route as ClassificacaoRouteImport } from './routes/classificacao'
 import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as IndexRouteImport } from './routes/index'
@@ -39,6 +42,16 @@ const MediasRoute = MediasRouteImport.update({
   path: '/medias',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GmsRoute = GmsRouteImport.update({
+  id: '/gms',
+  path: '/gms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FreeAgentsRoute = FreeAgentsRouteImport.update({
+  id: '/free-agents',
+  path: '/free-agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EscalacoesRoute = EscalacoesRouteImport.update({
   id: '/escalacoes',
   path: '/escalacoes',
@@ -47,6 +60,11 @@ const EscalacoesRoute = EscalacoesRouteImport.update({
 const ElencosRoute = ElencosRouteImport.update({
   id: '/elencos',
   path: '/elencos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DraftRoute = DraftRouteImport.update({
+  id: '/draft',
+  path: '/draft',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClassificacaoRoute = ClassificacaoRouteImport.update({
@@ -69,8 +87,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
   '/classificacao': typeof ClassificacaoRoute
+  '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
+  '/free-agents': typeof FreeAgentsRoute
+  '/gms': typeof GmsRoute
   '/medias': typeof MediasRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
@@ -80,8 +101,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
   '/classificacao': typeof ClassificacaoRoute
+  '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
+  '/free-agents': typeof FreeAgentsRoute
+  '/gms': typeof GmsRoute
   '/medias': typeof MediasRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
@@ -92,8 +116,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
   '/classificacao': typeof ClassificacaoRoute
+  '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
+  '/free-agents': typeof FreeAgentsRoute
+  '/gms': typeof GmsRoute
   '/medias': typeof MediasRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
@@ -105,8 +132,11 @@ export interface FileRouteTypes {
     | '/'
     | '/calendario'
     | '/classificacao'
+    | '/draft'
     | '/elencos'
     | '/escalacoes'
+    | '/free-agents'
+    | '/gms'
     | '/medias'
     | '/noticias'
     | '/recordes'
@@ -116,8 +146,11 @@ export interface FileRouteTypes {
     | '/'
     | '/calendario'
     | '/classificacao'
+    | '/draft'
     | '/elencos'
     | '/escalacoes'
+    | '/free-agents'
+    | '/gms'
     | '/medias'
     | '/noticias'
     | '/recordes'
@@ -127,8 +160,11 @@ export interface FileRouteTypes {
     | '/'
     | '/calendario'
     | '/classificacao'
+    | '/draft'
     | '/elencos'
     | '/escalacoes'
+    | '/free-agents'
+    | '/gms'
     | '/medias'
     | '/noticias'
     | '/recordes'
@@ -139,8 +175,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CalendarioRoute: typeof CalendarioRoute
   ClassificacaoRoute: typeof ClassificacaoRoute
+  DraftRoute: typeof DraftRoute
   ElencosRoute: typeof ElencosRoute
   EscalacoesRoute: typeof EscalacoesRoute
+  FreeAgentsRoute: typeof FreeAgentsRoute
+  GmsRoute: typeof GmsRoute
   MediasRoute: typeof MediasRoute
   NoticiasRoute: typeof NoticiasRoute
   RecordesRoute: typeof RecordesRoute
@@ -177,6 +216,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MediasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gms': {
+      id: '/gms'
+      path: '/gms'
+      fullPath: '/gms'
+      preLoaderRoute: typeof GmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/free-agents': {
+      id: '/free-agents'
+      path: '/free-agents'
+      fullPath: '/free-agents'
+      preLoaderRoute: typeof FreeAgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/escalacoes': {
       id: '/escalacoes'
       path: '/escalacoes'
@@ -189,6 +242,13 @@ declare module '@tanstack/react-router' {
       path: '/elencos'
       fullPath: '/elencos'
       preLoaderRoute: typeof ElencosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/draft': {
+      id: '/draft'
+      path: '/draft'
+      fullPath: '/draft'
+      preLoaderRoute: typeof DraftRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/classificacao': {
@@ -219,8 +279,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CalendarioRoute: CalendarioRoute,
   ClassificacaoRoute: ClassificacaoRoute,
+  DraftRoute: DraftRoute,
   ElencosRoute: ElencosRoute,
   EscalacoesRoute: EscalacoesRoute,
+  FreeAgentsRoute: FreeAgentsRoute,
+  GmsRoute: GmsRoute,
   MediasRoute: MediasRoute,
   NoticiasRoute: NoticiasRoute,
   RecordesRoute: RecordesRoute,

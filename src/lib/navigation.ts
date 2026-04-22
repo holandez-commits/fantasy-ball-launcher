@@ -7,7 +7,9 @@ import {
   Award,
   BookText,
   Newspaper,
-  Home,
+  Gavel,
+  UserPlus,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,15 +28,15 @@ export type NavSection = {
 };
 
 /**
- * Navegação principal: cada "seção" é uma aba do header.
- * Os `items` de cada seção viram a lista da sidebar quando essa seção está ativa.
+ * Navegação principal: cada "seção" é uma aba do header (Hierarquia 1).
+ * Os `items` de cada seção (Hierarquia 2) aparecem agrupados na sidebar,
+ * todos visíveis o tempo todo.
  */
 export const navSections: NavSection[] = [
   {
     id: "liga",
     label: "Liga",
     items: [
-      { to: "/", label: "Início", icon: Home, desc: "Visão geral" },
       {
         to: "/classificacao",
         label: "Classificação",
@@ -47,7 +49,19 @@ export const navSections: NavSection[] = [
         icon: CalendarDays,
         desc: "Jogos e rodadas",
       },
-      { to: "/regras", label: "Regras", icon: BookText, desc: "Como funciona a liga" },
+      {
+        to: "/regras",
+        label: "Livro de Regras",
+        icon: BookText,
+        desc: "Como funciona a liga",
+      },
+      { to: "/draft", label: "Draft", icon: Gavel, desc: "Draft da temporada" },
+      {
+        to: "/free-agents",
+        label: "Free Agents",
+        icon: UserPlus,
+        desc: "Mercado de jogadores livres",
+      },
     ],
   },
   {
@@ -61,14 +75,15 @@ export const navSections: NavSection[] = [
         icon: ClipboardList,
         desc: "Quem joga essa rodada",
       },
+      { to: "/gms", label: "GMs", icon: UserCog, desc: "General Managers da liga" },
     ],
   },
   {
     id: "stats",
     label: "Estatísticas",
     items: [
-      { to: "/medias", label: "Médias", icon: BarChart3, desc: "Médias dos jogadores" },
       { to: "/recordes", label: "Recordes", icon: Award, desc: "Marcas históricas" },
+      { to: "/medias", label: "Médias", icon: BarChart3, desc: "Médias dos jogadores" },
     ],
   },
   {
@@ -87,11 +102,9 @@ export const navSections: NavSection[] = [
 
 /** Encontra a seção dona da rota atual (default: primeira). */
 export function getActiveSection(pathname: string): NavSection {
-  // Match exato primeiro
   for (const section of navSections) {
     if (section.items.some((i) => i.to === pathname)) return section;
   }
-  // Match por prefixo (rotas filhas tipo /noticias/$slug)
   for (const section of navSections) {
     if (section.items.some((i) => i.to !== "/" && pathname.startsWith(i.to))) {
       return section;
