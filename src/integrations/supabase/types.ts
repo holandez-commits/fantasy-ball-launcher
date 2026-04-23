@@ -14,6 +14,88 @@ export type Database = {
   }
   public: {
     Tables: {
+      games: {
+        Row: {
+          away_score: number
+          away_stats: Json | null
+          away_team_id: string
+          category_results: Json | null
+          created_at: string
+          home_score: number
+          home_stats: Json | null
+          home_team_id: string
+          id: string
+          is_playoff: boolean
+          played_on: string | null
+          season_id: string
+          source_post_url: string | null
+          source_sheet_tab: string | null
+          source_sheet_url: string | null
+          updated_at: string
+          week_number: number
+        }
+        Insert: {
+          away_score?: number
+          away_stats?: Json | null
+          away_team_id: string
+          category_results?: Json | null
+          created_at?: string
+          home_score?: number
+          home_stats?: Json | null
+          home_team_id: string
+          id?: string
+          is_playoff?: boolean
+          played_on?: string | null
+          season_id: string
+          source_post_url?: string | null
+          source_sheet_tab?: string | null
+          source_sheet_url?: string | null
+          updated_at?: string
+          week_number: number
+        }
+        Update: {
+          away_score?: number
+          away_stats?: Json | null
+          away_team_id?: string
+          category_results?: Json | null
+          created_at?: string
+          home_score?: number
+          home_stats?: Json | null
+          home_team_id?: string
+          id?: string
+          is_playoff?: boolean
+          played_on?: string | null
+          season_id?: string
+          source_post_url?: string | null
+          source_sheet_tab?: string | null
+          source_sheet_url?: string | null
+          updated_at?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "games_away_team_id_fkey"
+            columns: ["away_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_home_team_id_fkey"
+            columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gms: {
         Row: {
           avatar_url: string | null
@@ -133,6 +215,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      seasons: {
+        Row: {
+          created_at: string
+          end_year: number
+          id: string
+          label: string
+          start_year: number
+          total_weeks: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_year: number
+          id?: string
+          label: string
+          start_year: number
+          total_weeks?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_year?: number
+          id?: string
+          label?: string
+          start_year?: number
+          total_weeks?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       teams: {
         Row: {
