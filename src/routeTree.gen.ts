@@ -21,6 +21,7 @@ import { Route as DraftRouteImport } from './routes/draft'
 import { Route as ClassificacaoRouteImport } from './routes/classificacao'
 import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TimesSlugRouteImport } from './routes/times_.$slug'
 
 const RegrasRoute = RegrasRouteImport.update({
   id: '/regras',
@@ -82,6 +83,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TimesSlugRoute = TimesSlugRouteImport.update({
+  id: '/times_/$slug',
+  path: '/times/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/times_/$slug': typeof TimesSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/times/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/times/$slug'
   id:
     | '__root__'
     | '/'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/times_/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,6 +196,7 @@ export interface RootRouteChildren {
   NoticiasRoute: typeof NoticiasRoute
   RecordesRoute: typeof RecordesRoute
   RegrasRoute: typeof RegrasRoute
+  TimesSlugRoute: typeof TimesSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/times_/$slug': {
+      id: '/times_/$slug'
+      path: '/times/$slug'
+      fullPath: '/times/$slug'
+      preLoaderRoute: typeof TimesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -288,6 +308,7 @@ const rootRouteChildren: RootRouteChildren = {
   NoticiasRoute: NoticiasRoute,
   RecordesRoute: RecordesRoute,
   RegrasRoute: RegrasRoute,
+  TimesSlugRoute: TimesSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
