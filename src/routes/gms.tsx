@@ -54,7 +54,8 @@ function GMCard({ gm, team }: { gm: GM; team: TeamLite | undefined }) {
             {gm.joined_year && <span>Desde {gm.joined_year}</span>}
             {team && (
               <Link
-                to="/elencos"
+                to="/times/$slug"
+                params={{ slug: team.slug }}
                 className="inline-flex items-center gap-1 font-medium text-foreground hover:text-[color:var(--court)]"
               >
                 {team.abbreviation} · {team.name}

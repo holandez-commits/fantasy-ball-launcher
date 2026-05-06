@@ -58,8 +58,7 @@ function ElencosPage() {
       <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--court)]">Times & jogadores</p>
       <h1 className="mt-3 font-display text-4xl tracking-tight md:text-5xl">Elencos</h1>
       <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-        As franquias da liga e seus respectivos comandantes. Em breve, cada time terá sua própria página com elenco
-        completo.
+        As franquias da liga e seus respectivos comandantes.
       </p>
 
       <div className="mt-10">
@@ -71,49 +70,49 @@ function ElencosPage() {
             {teams.map((team) => {
               const primary = team.primary_color || "var(--chrome)";
               return (
-                <li
-                  key={team.id}
-                  className="overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-[color:var(--court)]"
-                >
-                  <div
-                    className="h-2 w-full"
-                    style={{ background: primary }}
-                  />
-                  <div className="p-5">
-                    <div className="flex items-start gap-4">
-                      <div
-                        className="flex h-12 w-12 flex-none items-center justify-center rounded-lg text-sm font-display font-semibold text-white"
-                        style={{ background: primary }}
-                      >
-                        {team.logo_url ? (
-                          <img src={team.logo_url} alt={team.name} className="h-full w-full rounded-lg object-cover" />
-                        ) : (
-                          <span>{team.abbreviation}</span>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <h2 className="font-display text-lg leading-tight">{team.name}</h2>
-                        <p className="mt-0.5 text-xs uppercase tracking-wider text-muted-foreground">
-                          {team.abbreviation}
-                          {team.city ? ` · ${team.city}` : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <dl className="mt-4 space-y-1.5 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <dt className="text-muted-foreground">GM</dt>
-                        <dd className="truncate font-medium">
-                          {team.gm ? team.gm.full_name : <span className="text-muted-foreground">—</span>}
-                        </dd>
-                      </div>
-                      {team.founded_year && (
-                        <div className="flex items-center justify-between gap-2">
-                          <dt className="text-muted-foreground">Fundado em</dt>
-                          <dd className="font-medium">{team.founded_year}</dd>
+                <li key={team.id}>
+                  <Link
+                    to="/times/$slug"
+                    params={{ slug: team.slug }}
+                    className="block overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-[color:var(--court)]"
+                  >
+                    <div className="h-2 w-full" style={{ background: primary }} />
+                    <div className="p-5">
+                      <div className="flex items-start gap-4">
+                        <div
+                          className="flex h-12 w-12 flex-none items-center justify-center rounded-lg text-sm font-display font-semibold text-white"
+                          style={{ background: primary }}
+                        >
+                          {team.logo_url ? (
+                            <img src={team.logo_url} alt={team.name} className="h-full w-full rounded-lg object-cover" />
+                          ) : (
+                            <span>{team.abbreviation}</span>
+                          )}
                         </div>
-                      )}
-                    </dl>
-                  </div>
+                        <div className="min-w-0">
+                          <h2 className="font-display text-lg leading-tight">{team.name}</h2>
+                          <p className="mt-0.5 text-xs uppercase tracking-wider text-muted-foreground">
+                            {team.abbreviation}
+                            {team.city ? ` · ${team.city}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <dl className="mt-4 space-y-1.5 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-muted-foreground">GM</dt>
+                          <dd className="truncate font-medium">
+                            {team.gm ? team.gm.full_name : <span className="text-muted-foreground">—</span>}
+                          </dd>
+                        </div>
+                        {team.founded_year && (
+                          <div className="flex items-center justify-between gap-2">
+                            <dt className="text-muted-foreground">Fundado em</dt>
+                            <dd className="font-medium">{team.founded_year}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+                  </Link>
                 </li>
               );
             })}
@@ -130,8 +129,7 @@ function EmptyTeams() {
       <Shield className="mx-auto h-8 w-8 text-muted-foreground" />
       <p className="mt-3 font-display text-lg">Nenhum time cadastrado ainda</p>
       <p className="mt-2 text-sm text-muted-foreground">
-        Cadastre as franquias da liga pelo painel do Lovable Cloud (tabela <code>teams</code>) ou aguarde a área de
-        administração do site.
+        Cadastre as franquias da liga pelo painel do Supabase (tabela <code>teams</code>).
       </p>
       <Link to="/gms" className="mt-4 inline-block text-sm font-medium text-[color:var(--court)] hover:underline">
         Ver GMs cadastrados →
