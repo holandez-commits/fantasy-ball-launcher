@@ -490,7 +490,7 @@ function ClassificacaoPage() {
       setTeams((teamsRes.data as unknown as TeamRow[]) ?? []);
 
       const defaultSeason =
-        fetchedSeasons.find((s) => s.is_completed && !s.is_current) ??
+        fetchedSeasons.find((s) => s.is_current) ??
         fetchedSeasons.find((s) => s.is_completed) ??
         fetchedSeasons[0];
 
