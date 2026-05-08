@@ -31,6 +31,8 @@ type GameRow = {
   season_id: string;
 };
 
+type WeekEntry = { season_id: string; week_number: number };
+
 type StandingEntry = {
   team: TeamRow;
   w: number; d: number; l: number; gp: number; pct: number;
@@ -221,39 +223,58 @@ function StandingsMini({ entries }: { entries: StandingEntry[] }) {
 
 function GamesSection({
   seasons,
-  allGames,
+  weeksIndex,
   teamMap,
   defaultSeasonId,
+  defaultWeek,
 }: {
   seasons: Season[];
-  allGames: GameRow[];
+  weeksIndex: WeekEntry[];
   teamMap: Map<string, TeamRow>;
   defaultSeasonId: string;
+  defaultWeek: number | null;
 }) {
   const [selectedSeasonId, setSelectedSeasonId] = useState(defaultSeasonId);
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [selectedWeek, setSelectedWeek]         = useState<number | null>(defaultWeek);
+  const [weekGames, setWeekGames]               = useState<GameRow[]>([]);
+  const [loadingGames, setLoadingGames]         = useState(false);
 
+  // Semanas disponíveis para a temporada selecionada
   const weekOptions = useMemo(() => {
     const weeks = [...new Set(
-      allGames
-        .filter((g) => g.season_id === selectedSeasonId && g.week_number != null)
-        .map((g) => g.week_number as number)
+      weeksIndex
+        .filter((w) => w.season_id === selectedSeasonId)
+        .map((w) => w.week_number)
     )].sort((a, b) => a - b);
     return weeks.map((w) => ({ value: w, label: `Semana ${w}` }));
-  }, [allGames, selectedSeasonId]);
+  }, [weeksIndex, selectedSeasonId]);
 
-  const defaultWeek = weekOptions.length > 0 ? weekOptions[weekOptions.length - 1].value : null;
-  const activeWeek = selectedWeek ?? defaultWeek;
+  // Quando muda de temporada, vai para a última semana dessa temporada
+  useEffect(() => {
+    if (weekOptions.length > 0) {
+      setSelectedWeek(weekOptions[weekOptions.length - 1].value);
+    }
+  }, [selectedSeasonId]);
 
-  useEffect(() => { setSelectedWeek(null); }, [selectedSeasonId]);
+  // Busca jogos da semana selecionada sob demanda
+  useEffect(() => {
+    if (!selectedSeasonId || selectedWeek == null) return;
 
-  const weekGames = useMemo(() => {
-    return allGames.filter(
-      (g) => g.season_id === selectedSeasonId && g.week_number === activeWeek
-    );
-  }, [allGames, selectedSeasonId, activeWeek]);
+    setLoadingGames(true);
+    supabase
+      .from("games")
+      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id")
+      .eq("season_id", selectedSeasonId)
+      .eq("week_number", selectedWeek)
+      .eq("is_playoff", false)
+      .then(({ data }) => {
+        setWeekGames((data as GameRow[]) ?? []);
+        setLoadingGames(false);
+      });
+  }, [selectedSeasonId, selectedWeek]);
 
   const seasonOptions = seasons.map((s) => ({ value: s.id, label: `Temporada ${s.label}` }));
+  const activeWeek = selectedWeek ?? (weekOptions[weekOptions.length - 1]?.value ?? null);
 
   return (
     <div>
@@ -268,7 +289,13 @@ function GamesSection({
         )}
       </div>
 
-      {weekGames.length === 0 ? (
+      {loadingGames ? (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      ) : weekGames.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum jogo encontrado.</p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -318,28 +345,54 @@ function GamesSection({
 // ─── HomePage ─────────────────────────────────────────────────────────────────
 
 function HomePage() {
-  const [seasons, setSeasons]             = useState<Season[]>([]);
-  const [teams, setTeams]                 = useState<TeamRow[]>([]);
-  const [games, setGames]                 = useState<GameRow[]>([]);
+  const [seasons, setSeasons]                 = useState<Season[]>([]);
+  const [teams, setTeams]                     = useState<TeamRow[]>([]);
+  const [currentSeasonGames, setCurrentSeasonGames] = useState<GameRow[]>([]);
+  const [weeksIndex, setWeeksIndex]           = useState<WeekEntry[]>([]);
   const [currentSeasonId, setCurrentSeasonId] = useState<string | null>(null);
-  const [activeTab, setActiveTab]         = useState<TabId>("geral");
-  const [loading, setLoading]             = useState(true);
+  const [defaultWeek, setDefaultWeek]         = useState<number | null>(null);
+  const [activeTab, setActiveTab]             = useState<TabId>("geral");
+  const [loading, setLoading]                 = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [seasonsRes, teamsRes, gamesRes] = await Promise.all([
+      // 1. Metadados: seasons + teams
+      const [seasonsRes, teamsRes] = await Promise.all([
         supabase.from("seasons").select("id, label, start_year, is_current").order("start_year", { ascending: false }),
         supabase.from("teams").select("id, name, slug, conference, logo_url, primary_color, is_active"),
-        supabase.from("games").select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id").eq("is_playoff", false),
       ]);
 
       const fetchedSeasons = (seasonsRes.data ?? []) as Season[];
       const current = fetchedSeasons.find((s) => s.is_current) ?? fetchedSeasons[0];
-
       setSeasons(fetchedSeasons);
       setTeams((teamsRes.data as TeamRow[]) ?? []);
-      setGames((gamesRes.data as GameRow[]) ?? []);
       setCurrentSeasonId(current?.id ?? null);
+
+      if (!current) { setLoading(false); return; }
+
+      // 2. Jogos da temporada atual (para classificação) — só 468 linhas
+      const { data: currentGamesData } = await supabase
+        .from("games")
+        .select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id")
+        .eq("season_id", current.id)
+        .eq("is_playoff", false);
+
+      setCurrentSeasonGames((currentGamesData as GameRow[]) ?? []);
+
+      // 3. Índice de semanas via RPC (retorna só distintos, sem limite de rows)
+      const { data: weeksData } = await supabase.rpc("get_weeks_index");
+
+      const weeks = (weeksData ?? []) as WeekEntry[];
+      setWeeksIndex(weeks);
+
+      // Default week: última semana da temporada atual
+      const currentWeeks = weeks
+        .filter((w) => w.season_id === current.id)
+        .map((w) => w.week_number)
+        .sort((a, b) => a - b);
+      const lastWeek = currentWeeks[currentWeeks.length - 1] ?? null;
+      setDefaultWeek(lastWeek);
+
       setLoading(false);
     })();
   }, []);
@@ -350,18 +403,13 @@ function HomePage() {
     return m;
   }, [teams]);
 
-  const currentGames = useMemo(() =>
-    currentSeasonId ? games.filter((g) => g.season_id === currentSeasonId) : [],
-    [games, currentSeasonId]
-  );
-
-  const allStandings     = useMemo(() => buildStandings(teams, currentGames), [teams, currentGames]);
-  const donutStandings   = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Donut"), currentGames), [teams, currentGames]);
-  const badboysStandings = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Bad Boys"), currentGames), [teams, currentGames]);
+  const allStandings     = useMemo(() => buildStandings(teams, currentSeasonGames), [teams, currentSeasonGames]);
+  const donutStandings   = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Donut"), currentSeasonGames), [teams, currentSeasonGames]);
+  const badboysStandings = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Bad Boys"), currentSeasonGames), [teams, currentSeasonGames]);
 
   const currentStandings =
-    activeTab === "geral"    ? allStandings :
-    activeTab === "donut"    ? donutStandings :
+    activeTab === "geral"   ? allStandings :
+    activeTab === "donut"   ? donutStandings :
     badboysStandings;
 
   const tabs: { id: TabId; label: string }[] = [
@@ -388,16 +436,21 @@ function HomePage() {
       {/* Jogos */}
       <section>
         <h2 className="mb-4 font-display text-2xl tracking-tight">Jogos</h2>
-        {loading ? (
-          <div className="h-48 rounded-lg bg-muted animate-pulse" />
-        ) : currentSeasonId ? (
+        {loading || !currentSeasonId ? (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : (
           <GamesSection
             seasons={seasons}
-            allGames={games}
+            weeksIndex={weeksIndex}
             teamMap={teamMap}
             defaultSeasonId={currentSeasonId}
+            defaultWeek={defaultWeek}
           />
-        ) : null}
+        )}
       </section>
 
       {/* Atalhos */}
