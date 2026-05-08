@@ -51,6 +51,14 @@ type StandingEntry = {
 
 type TabId = "geral" | "donut" | "badboys";
 
+type StandingsRow = {
+  team_id: string;
+  w: number;
+  d: number;
+  l: number;
+  gp: number;
+};
+
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute("/classificacao")({
@@ -91,30 +99,34 @@ function sortGamesDesc(games: GameRow[]): GameRow[] {
   });
 }
 
-function buildStandings(teams: TeamRow[], games: GameRow[], singleSeason: boolean): StandingEntry[] {
+function buildStandings(teams: TeamRow[], games: GameRow[], singleSeason: boolean, standingsMap?: Map<string, StandingsRow>): StandingEntry[] {
   const map = new Map<string, { w: number; d: number; l: number }>();
   const teamGames = new Map<string, GameRow[]>();
 
   for (const t of teams) {
-    map.set(t.id, { w: 0, d: 0, l: 0 });
+    // Use standingsMap (RPC) when available, fallback to counting from games
+    const rpc = standingsMap?.get(t.id);
+    map.set(t.id, rpc ? { w: Number(rpc.w), d: Number(rpc.d), l: Number(rpc.l) } : { w: 0, d: 0, l: 0 });
     teamGames.set(t.id, []);
   }
 
+  // Still iterate games for streak/L5 calculation
   for (const g of games) {
-    const home = map.get(g.home_team_id);
-    const away = map.get(g.away_team_id);
-
-    if (g.home_score > g.away_score) {
-      if (home) home.w++;
-      if (away) away.l++;
-    } else if (g.away_score > g.home_score) {
-      if (away) away.w++;
-      if (home) home.l++;
-    } else {
-      if (home) home.d++;
-      if (away) away.d++;
+    if (!standingsMap) {
+      // Fallback: calculate W/D/L from games when no RPC data
+      const home = map.get(g.home_team_id);
+      const away = map.get(g.away_team_id);
+      if (g.home_score > g.away_score) {
+        if (home) home.w++;
+        if (away) away.l++;
+      } else if (g.away_score > g.home_score) {
+        if (away) away.w++;
+        if (home) home.l++;
+      } else {
+        if (home) home.d++;
+        if (away) away.d++;
+      }
     }
-
     if (teamGames.has(g.home_team_id)) teamGames.get(g.home_team_id)!.push(g);
     if (teamGames.has(g.away_team_id)) teamGames.get(g.away_team_id)!.push(g);
   }
@@ -122,7 +134,8 @@ function buildStandings(teams: TeamRow[], games: GameRow[], singleSeason: boolea
   return teams
     .map((team) => {
       const rec = map.get(team.id) ?? { w: 0, d: 0, l: 0 };
-      const gp = rec.w + rec.d + rec.l;
+      const rpcRow = standingsMap?.get(team.id);
+      const gp = rpcRow ? Number(rpcRow.gp) : rec.w + rec.d + rec.l;
 
       let streak: StandingEntry["streak"] = null;
       let last5: StandingEntry["last5"] = null;
@@ -466,6 +479,7 @@ function ClassificacaoPage() {
   const [selectedSeasons, setSelectedSeasons] = useState<Set<string>>(new Set());
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [games, setGames] = useState<GameRow[]>([]);
+  const [standingsData, setStandingsData] = useState<StandingsRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("geral");
@@ -499,39 +513,54 @@ function ClassificacaoPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedSeasons.size === 0) { setGames([]); setLoading(false); return; }
+    if (selectedSeasons.size === 0) { setGames([]); setStandingsData([]); setLoading(false); return; }
 
     setLoading(true);
     const ids = Array.from(selectedSeasons);
 
-    supabase
-      .from("games")
-      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week")
-      .in("season_id", ids)
-      .eq("is_playoff", false)
-      .then(({ data, error: err }) => {
-        if (err) setError(err.message);
-        else setGames((data as GameRow[]) ?? []);
-        setLoading(false);
-      });
+    // Sempre busca standings via RPC (sem limite de rows)
+    const standingsPromise = supabase.rpc("get_standings", { season_ids: ids });
+
+    // Busca jogos completos só quando uma temporada selecionada (para streak/L5)
+    const gamesPromise = selectedSeasons.size === 1
+      ? supabase
+          .from("games")
+          .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week")
+          .in("season_id", ids)
+          .eq("is_playoff", false)
+      : Promise.resolve({ data: [], error: null });
+
+    Promise.all([standingsPromise, gamesPromise]).then(([standingsRes, gamesRes]) => {
+      if (standingsRes.error) setError(standingsRes.error.message);
+      else setStandingsData((standingsRes.data as StandingsRow[]) ?? []);
+      if (!gamesRes.error) setGames((gamesRes.data as GameRow[]) ?? []);
+      setLoading(false);
+    });
   }, [selectedSeasons]);
 
   // Streak e L5 só fazem sentido com uma única temporada selecionada
   const singleSeason = selectedSeasons.size === 1;
 
+  // Mapa de standings do RPC
+  const standingsMap = useMemo(() => {
+    const m = new Map<string, StandingsRow>();
+    for (const r of standingsData) m.set(r.team_id, r);
+    return m;
+  }, [standingsData]);
+
   const allStandings = useMemo(
-    () => buildStandings(teams, games, singleSeason),
-    [teams, games, singleSeason]
+    () => buildStandings(teams, games, singleSeason, standingsMap),
+    [teams, games, singleSeason, standingsMap]
   );
 
   const donutStandings = useMemo(
-    () => buildStandings(teams.filter((t) => t.conference === "Donut"), games, singleSeason),
-    [teams, games, singleSeason]
+    () => buildStandings(teams.filter((t) => t.conference === "Donut"), games, singleSeason, standingsMap),
+    [teams, games, singleSeason, standingsMap]
   );
 
   const badboysStandings = useMemo(
-    () => buildStandings(teams.filter((t) => t.conference === "Bad Boys"), games, singleSeason),
-    [teams, games, singleSeason]
+    () => buildStandings(teams.filter((t) => t.conference === "Bad Boys"), games, singleSeason, standingsMap),
+    [teams, games, singleSeason, standingsMap]
   );
 
   const tabs: { id: TabId; label: string }[] = [
