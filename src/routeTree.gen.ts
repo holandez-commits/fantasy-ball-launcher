@@ -13,8 +13,10 @@ import { Route as RegrasRouteImport } from './routes/regras'
 import { Route as RecordesRouteImport } from './routes/recordes'
 import { Route as NoticiasRouteImport } from './routes/noticias'
 import { Route as MediasRouteImport } from './routes/medias'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as GmsRouteImport } from './routes/gms'
 import { Route as FreeAgentsRouteImport } from './routes/free-agents'
+import { Route as EscalarRouteImport } from './routes/escalar'
 import { Route as EscalacoesRouteImport } from './routes/escalacoes'
 import { Route as ElencosRouteImport } from './routes/elencos'
 import { Route as DraftRouteImport } from './routes/draft'
@@ -22,6 +24,8 @@ import { Route as ClassificacaoRouteImport } from './routes/classificacao'
 import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TimesSlugRouteImport } from './routes/times_.$slug'
+import { Route as AdminFecharSemanaRouteImport } from './routes/admin.fechar-semana'
+import { Route as AdminConsolidarLockRouteImport } from './routes/admin.consolidar-lock'
 
 const RegrasRoute = RegrasRouteImport.update({
   id: '/regras',
@@ -43,6 +47,11 @@ const MediasRoute = MediasRouteImport.update({
   path: '/medias',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GmsRoute = GmsRouteImport.update({
   id: '/gms',
   path: '/gms',
@@ -51,6 +60,11 @@ const GmsRoute = GmsRouteImport.update({
 const FreeAgentsRoute = FreeAgentsRouteImport.update({
   id: '/free-agents',
   path: '/free-agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EscalarRoute = EscalarRouteImport.update({
+  id: '/escalar',
+  path: '/escalar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EscalacoesRoute = EscalacoesRouteImport.update({
@@ -88,6 +102,16 @@ const TimesSlugRoute = TimesSlugRouteImport.update({
   path: '/times/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminFecharSemanaRoute = AdminFecharSemanaRouteImport.update({
+  id: '/admin/fechar-semana',
+  path: '/admin/fechar-semana',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminConsolidarLockRoute = AdminConsolidarLockRouteImport.update({
+  id: '/admin/consolidar-lock',
+  path: '/admin/consolidar-lock',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,12 +120,16 @@ export interface FileRoutesByFullPath {
   '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
+  '/escalar': typeof EscalarRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
+  '/admin/fechar-semana': typeof AdminFecharSemanaRoute
   '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesByTo {
@@ -111,12 +139,16 @@ export interface FileRoutesByTo {
   '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
+  '/escalar': typeof EscalarRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
+  '/admin/fechar-semana': typeof AdminFecharSemanaRoute
   '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesById {
@@ -127,12 +159,16 @@ export interface FileRoutesById {
   '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
+  '/escalar': typeof EscalarRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
+  '/admin/fechar-semana': typeof AdminFecharSemanaRoute
   '/times_/$slug': typeof TimesSlugRoute
 }
 export interface FileRouteTypes {
@@ -144,12 +180,16 @@ export interface FileRouteTypes {
     | '/draft'
     | '/elencos'
     | '/escalacoes'
+    | '/escalar'
     | '/free-agents'
     | '/gms'
+    | '/login'
     | '/medias'
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/admin/consolidar-lock'
+    | '/admin/fechar-semana'
     | '/times/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -159,12 +199,16 @@ export interface FileRouteTypes {
     | '/draft'
     | '/elencos'
     | '/escalacoes'
+    | '/escalar'
     | '/free-agents'
     | '/gms'
+    | '/login'
     | '/medias'
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/admin/consolidar-lock'
+    | '/admin/fechar-semana'
     | '/times/$slug'
   id:
     | '__root__'
@@ -174,12 +218,16 @@ export interface FileRouteTypes {
     | '/draft'
     | '/elencos'
     | '/escalacoes'
+    | '/escalar'
     | '/free-agents'
     | '/gms'
+    | '/login'
     | '/medias'
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/admin/consolidar-lock'
+    | '/admin/fechar-semana'
     | '/times_/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -190,12 +238,16 @@ export interface RootRouteChildren {
   DraftRoute: typeof DraftRoute
   ElencosRoute: typeof ElencosRoute
   EscalacoesRoute: typeof EscalacoesRoute
+  EscalarRoute: typeof EscalarRoute
   FreeAgentsRoute: typeof FreeAgentsRoute
   GmsRoute: typeof GmsRoute
+  LoginRoute: typeof LoginRoute
   MediasRoute: typeof MediasRoute
   NoticiasRoute: typeof NoticiasRoute
   RecordesRoute: typeof RecordesRoute
   RegrasRoute: typeof RegrasRoute
+  AdminConsolidarLockRoute: typeof AdminConsolidarLockRoute
+  AdminFecharSemanaRoute: typeof AdminFecharSemanaRoute
   TimesSlugRoute: typeof TimesSlugRoute
 }
 
@@ -229,6 +281,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MediasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gms': {
       id: '/gms'
       path: '/gms'
@@ -241,6 +300,13 @@ declare module '@tanstack/react-router' {
       path: '/free-agents'
       fullPath: '/free-agents'
       preLoaderRoute: typeof FreeAgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/escalar': {
+      id: '/escalar'
+      path: '/escalar'
+      fullPath: '/escalar'
+      preLoaderRoute: typeof EscalarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/escalacoes': {
@@ -292,6 +358,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/fechar-semana': {
+      id: '/admin/fechar-semana'
+      path: '/admin/fechar-semana'
+      fullPath: '/admin/fechar-semana'
+      preLoaderRoute: typeof AdminFecharSemanaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/consolidar-lock': {
+      id: '/admin/consolidar-lock'
+      path: '/admin/consolidar-lock'
+      fullPath: '/admin/consolidar-lock'
+      preLoaderRoute: typeof AdminConsolidarLockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -302,12 +382,16 @@ const rootRouteChildren: RootRouteChildren = {
   DraftRoute: DraftRoute,
   ElencosRoute: ElencosRoute,
   EscalacoesRoute: EscalacoesRoute,
+  EscalarRoute: EscalarRoute,
   FreeAgentsRoute: FreeAgentsRoute,
   GmsRoute: GmsRoute,
+  LoginRoute: LoginRoute,
   MediasRoute: MediasRoute,
   NoticiasRoute: NoticiasRoute,
   RecordesRoute: RecordesRoute,
   RegrasRoute: RegrasRoute,
+  AdminConsolidarLockRoute: AdminConsolidarLockRoute,
+  AdminFecharSemanaRoute: AdminFecharSemanaRoute,
   TimesSlugRoute: TimesSlugRoute,
 }
 export const routeTree = rootRouteImport

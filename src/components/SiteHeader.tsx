@@ -3,11 +3,13 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { navSections, getActiveSection } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 
 export function SiteHeader() {
   const { pathname } = useLocation();
   const active = getActiveSection(pathname);
   const [open, setOpen] = useState(false);
+  const { user, loading, signOut, isAdmin, isGm } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 bg-[color:var(--chrome)] text-[color:var(--chrome-foreground)]">
@@ -48,11 +50,57 @@ export function SiteHeader() {
           })}
         </nav>
 
-        {/* Right slot — placeholder p/ futura área de login/admin */}
+        {/* Right slot — temporada + login/logout */}
         <div className="hidden items-center gap-3 lg:flex">
           <span className="text-[11px] uppercase tracking-[0.25em] text-[color:var(--chrome-muted)]">
             Temp. 25/26
           </span>
+          {!loading &&
+            (user ? (
+              <>
+                {(isGm || isAdmin) && (
+                  <Link
+                    to="/escalar"
+                    className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
+                  >
+                    Escalar
+                  </Link>
+                )}
+                {isAdmin && (
+                  <Link
+                    to="/admin/fechar-semana"
+                    className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
+                  >
+                    Fechar semana
+                  </Link>
+                )}
+                {isAdmin && (
+                  <Link
+                    to="/admin/consolidar-lock"
+                    className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
+                  >
+                    Consolidar
+                  </Link>
+                )}
+                <span className="max-w-[180px] truncate text-xs text-[color:var(--chrome-muted)]">
+                  {(user.user_metadata?.name as string | undefined) ?? user.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  className="text-[13px] font-medium uppercase tracking-wider text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
+                >
+                  Sair
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="text-[13px] font-medium uppercase tracking-wider text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
+              >
+                Entrar
+              </Link>
+            ))}
         </div>
 
         {/* Mobile toggle */}
@@ -89,6 +137,60 @@ export function SiteHeader() {
               </div>
             ))}
           </nav>
+          {!loading && (
+            <div className="mx-auto max-w-[1400px] border-t border-[color:var(--chrome-border)] px-5 py-3 text-sm">
+              {user ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate text-[color:var(--chrome-muted)]">{user.email}</span>
+                  {(isGm || isAdmin) && (
+                    <Link
+                      to="/escalar"
+                      onClick={() => setOpen(false)}
+                      className="text-[color:var(--chrome-muted)]"
+                    >
+                      Escalar
+                    </Link>
+                  )}
+                  {isAdmin && (
+                    <Link
+                      to="/admin/fechar-semana"
+                      onClick={() => setOpen(false)}
+                      className="text-[color:var(--chrome-muted)]"
+                    >
+                      Fechar semana
+                    </Link>
+                  )}
+                  {isAdmin && (
+                    <Link
+                      to="/admin/consolidar-lock"
+                      onClick={() => setOpen(false)}
+                      className="text-[color:var(--chrome-muted)]"
+                    >
+                      Consolidar escalações
+                    </Link>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      void signOut();
+                    }}
+                    className="text-[color:var(--chrome-foreground)]"
+                  >
+                    Sair
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setOpen(false)}
+                  className="text-[color:var(--chrome-foreground)]"
+                >
+                  Entrar
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       )}
     </header>
