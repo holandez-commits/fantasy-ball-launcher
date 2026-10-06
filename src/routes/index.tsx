@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
+import { pickDefaultStatsSeason } from "../lib/seasons";
 import {
   ArrowUpRight, Trophy, Users, CalendarDays, ClipboardList,
   BarChart2, ChevronDown,
@@ -363,7 +364,8 @@ function HomePage() {
       ]);
 
       const fetchedSeasons = (seasonsRes.data ?? []) as Season[];
-      const current = fetchedSeasons.find((s) => s.is_current) ?? fetchedSeasons[0];
+      // Padrão: temporada mais recente que já tenha jogos finalizados
+      const current = await pickDefaultStatsSeason(fetchedSeasons);
       setSeasons(fetchedSeasons);
       setTeams((teamsRes.data as TeamRow[]) ?? []);
       setCurrentSeasonId(current?.id ?? null);
@@ -418,7 +420,7 @@ function HomePage() {
     { id: "badboys", label: "Bad Boys" },
   ];
 
-  const currentSeason = seasons.find((s) => s.is_current);
+  const currentSeason = seasons.find((s) => s.id === currentSeasonId);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 md:px-8 md:py-16 space-y-14">

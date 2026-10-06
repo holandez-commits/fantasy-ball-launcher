@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
+import { pickDefaultStatsSeason } from "../lib/seasons";
 import { ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -503,10 +504,7 @@ function ClassificacaoPage() {
       setSeasons(fetchedSeasons);
       setTeams((teamsRes.data as unknown as TeamRow[]) ?? []);
 
-      const defaultSeason =
-        fetchedSeasons.find((s) => s.is_current) ??
-        fetchedSeasons.find((s) => s.is_completed) ??
-        fetchedSeasons[0];
+      const defaultSeason = await pickDefaultStatsSeason(fetchedSeasons);
 
       if (defaultSeason) setSelectedSeasons(new Set([defaultSeason.id]));
     })();

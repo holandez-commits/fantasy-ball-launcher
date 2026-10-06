@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
 import { UserRound, ChevronLeft, ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { pickDefaultStatsSeason } from "../lib/seasons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ type LeagueStatRow = {
   turnovers: number;
 };
 
-type Season = { id: string; label: string; is_completed: boolean; is_current: boolean };
+type Season = { id: string; label: string; start_year: number; is_completed: boolean; is_current: boolean };
 
 type Penalty = { amount: number };
 
@@ -517,7 +518,11 @@ function TimePage() {
   const [allSeasonStats, setAllSeasonStats] = useState<TeamStatRow[]>([]);
   const [allLeagueStats, setAllLeagueStats] = useState<LeagueStatRow[]>([]);
   const [allTeamsFull, setAllTeamsFull]     = useState<{ id: string; conference: string | null }[]>([]);
+  // `season` = temporada corrente (elenco, multas, cap); `statsSeasonId` = temporada das estatísticas/jogos
   const [season, setSeason]                 = useState<Season | null>(null);
+  const [seasons, setSeasons]               = useState<Season[]>([]);
+  const [statsSeasonId, setStatsSeasonId]   = useState<string | null>(null);
+  const [statsLoading, setStatsLoading]     = useState(false);
   const [selectedCat, setSelectedCat]       = useState<CatKey>("pts");
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
@@ -551,17 +556,24 @@ function TimePage() {
       // 2. Temporada padrão
       const { data: seasons } = await supabase
         .from("seasons")
-        .select("id, label, is_completed, is_current")
+        .select("id, label, start_year, is_completed, is_current")
         .order("start_year", { ascending: false });
 
-      const defaultSeason =
-        (seasons ?? []).find((s) => s.is_current) ??
-        (seasons ?? []).find((s) => s.is_completed) ??
-        (seasons ?? [])[0];
+      const allSeasons = (seasons ?? []) as Season[];
+      // Elenco/multas/cap seguem a temporada corrente
+      const currentSeason =
+        allSeasons.find((s) => s.is_current) ??
+        allSeasons.find((s) => s.is_completed) ??
+        allSeasons[0];
 
-      if (!defaultSeason) { setError("Sem temporada disponível."); setLoading(false); return; }
-      setSeason(defaultSeason as Season);
-      const seasonId = defaultSeason.id;
+      if (!currentSeason) { setError("Sem temporada disponível."); setLoading(false); return; }
+      setSeason(currentSeason);
+      setSeasons(allSeasons);
+      const seasonId = currentSeason.id;
+
+      // Estatísticas/jogos: mais recente com jogos finalizados
+      const statsSeason = await pickDefaultStatsSeason(allSeasons);
+      setStatsSeasonId(statsSeason?.id ?? currentSeason.id);
 
       // 3. Todos os times para ranking de conferência
       const { data: teamsData } = await supabase.from("teams").select("id, conference");
@@ -572,7 +584,7 @@ function TimePage() {
         .from("roster_entries")
         .select("id, position, status, player:players(full_name)")
         .eq("team_id", t.id)
-        .eq("season", 2025)
+        .eq("season", currentSeason.start_year)
         .order("status");
 
       const rosterEntries = (rosterData as unknown as Omit<RosterEntry, "contract_years">[]) ?? [];
@@ -604,7 +616,19 @@ function TimePage() {
       const totalPenalty = ((penaltyData as Penalty[]) ?? []).reduce((sum, p) => sum + p.amount, 0);
       setPenalty(totalPenalty);
 
-      // 6. Últimos 5 jogos
+      setLoading(false);
+    })();
+  }, [slug]);
+
+  // Jogos e estatísticas: seguem a temporada escolhida no seletor
+  useEffect(() => {
+    if (!team || !statsSeasonId) return;
+    const t = team;
+    const seasonId = statsSeasonId;
+    let cancelled = false;
+    setStatsLoading(true);
+    (async () => {
+      // Últimos 5 jogos
       const { data: gamesData } = await supabase
         .from("games")
         .select("id, week_number, home_team_id, away_team_id, home_score, away_score, home_team:teams!games_home_team_id_fkey(name, slug), away_team:teams!games_away_team_id_fkey(name, slug)")
@@ -652,10 +676,12 @@ function TimePage() {
         turnovers: sum.turnovers / count,
       }));
 
+      if (cancelled) return;
       setAllLeagueStats(leagueAvgs);
-      setLoading(false);
+      setStatsLoading(false);
     })();
-  }, [slug]);
+    return () => { cancelled = true; };
+  }, [team, statsSeasonId]);
 
   const conferenceTeamIds = useMemo(() => {
     if (!team) return [];
@@ -744,6 +770,21 @@ function TimePage() {
           <SectionTitle title={`Elenco ${season?.label ?? ""}`} />
           <RosterTable entries={roster} penaltyAmount={penalty} seasonLabel={season?.label ?? ""} />
         </section>
+
+        {/* Seletor da temporada das estatísticas (elenco acima segue a temporada corrente) */}
+        <div className={cn("flex flex-wrap items-center gap-3", statsLoading && "opacity-60")}>
+          <label htmlFor="stats-season" className="text-sm text-muted-foreground">Estatísticas da temporada</label>
+          <select
+            id="stats-season"
+            value={statsSeasonId ?? ""}
+            onChange={(e) => setStatsSeasonId(e.target.value)}
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-sm"
+          >
+            {seasons.map((s) => (
+              <option key={s.id} value={s.id}>Temporada {s.label}</option>
+            ))}
+          </select>
+        </div>
 
         {/* 2. Últimos 5 confrontos */}
         <section>
