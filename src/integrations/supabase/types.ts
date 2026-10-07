@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       categories: {
@@ -35,6 +60,142 @@ export type Database = {
         }
         Relationships: []
       }
+      draft_picks: {
+        Row: {
+          created_at: string
+          current_team_id: string
+          disputed: boolean
+          draft_season_id: string
+          id: string
+          is_used: boolean
+          original_team_id: string
+          pick_number: number | null
+          player_id: string | null
+          round: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_team_id: string
+          disputed?: boolean
+          draft_season_id: string
+          id?: string
+          is_used?: boolean
+          original_team_id: string
+          pick_number?: number | null
+          player_id?: string | null
+          round: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_team_id?: string
+          disputed?: boolean
+          draft_season_id?: string
+          id?: string
+          is_used?: boolean
+          original_team_id?: string
+          pick_number?: number | null
+          player_id?: string | null
+          round?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "draft_picks_current_team_id_fkey"
+            columns: ["current_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_picks_draft_season_id_fkey"
+            columns: ["draft_season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_picks_original_team_id_fkey"
+            columns: ["original_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_picks_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      free_agent_bids: {
+        Row: {
+          created_at: string
+          gm_id: string | null
+          id: string
+          player_id: string
+          salary_offer: number
+          season_id: string
+          status: string
+          team_id: string
+          week_number: number
+        }
+        Insert: {
+          created_at?: string
+          gm_id?: string | null
+          id?: string
+          player_id: string
+          salary_offer: number
+          season_id: string
+          status?: string
+          team_id: string
+          week_number: number
+        }
+        Update: {
+          created_at?: string
+          gm_id?: string | null
+          id?: string
+          player_id?: string
+          salary_offer?: number
+          season_id?: string
+          status?: string
+          team_id?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_agent_bids_gm_id_fkey"
+            columns: ["gm_id"]
+            isOneToOne: false
+            referencedRelation: "gms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_agent_bids_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_agent_bids_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_agent_bids_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_category_results: {
         Row: {
           category_key: string
@@ -43,7 +204,7 @@ export type Database = {
           id: string
           team_id: string
           value: number
-          won_category: boolean
+          won_category: boolean | null
         }
         Insert: {
           category_key: string
@@ -52,7 +213,7 @@ export type Database = {
           id?: string
           team_id: string
           value: number
-          won_category: boolean
+          won_category?: boolean | null
         }
         Update: {
           category_key?: string
@@ -61,7 +222,7 @@ export type Database = {
           id?: string
           team_id?: string
           value?: number
-          won_category?: boolean
+          won_category?: boolean | null
         }
         Relationships: [
           {
@@ -89,13 +250,13 @@ export type Database = {
       }
       games: {
         Row: {
-          away_score: number
+          away_score: number | null
           away_team_id: string
           created_at: string
           game_code: string | null
           game_number_in_series: number | null
           game_number_in_week: number
-          home_score: number
+          home_score: number | null
           home_team_id: string
           id: string
           is_playoff: boolean
@@ -106,18 +267,19 @@ export type Database = {
           source_post_url: string | null
           source_sheet_tab: string | null
           source_sheet_url: string | null
-          tied_categories: number
+          status: string
+          tied_categories: number | null
           updated_at: string
           week_number: number | null
         }
         Insert: {
-          away_score?: number
+          away_score?: number | null
           away_team_id: string
           created_at?: string
           game_code?: string | null
           game_number_in_series?: number | null
           game_number_in_week?: number
-          home_score?: number
+          home_score?: number | null
           home_team_id: string
           id?: string
           is_playoff?: boolean
@@ -128,18 +290,19 @@ export type Database = {
           source_post_url?: string | null
           source_sheet_tab?: string | null
           source_sheet_url?: string | null
-          tied_categories?: number
+          status?: string
+          tied_categories?: number | null
           updated_at?: string
           week_number?: number | null
         }
         Update: {
-          away_score?: number
+          away_score?: number | null
           away_team_id?: string
           created_at?: string
           game_code?: string | null
           game_number_in_series?: number | null
           game_number_in_week?: number
-          home_score?: number
+          home_score?: number | null
           home_team_id?: string
           id?: string
           is_playoff?: boolean
@@ -150,7 +313,8 @@ export type Database = {
           source_post_url?: string | null
           source_sheet_tab?: string | null
           source_sheet_url?: string | null
-          tied_categories?: number
+          status?: string
+          tied_categories?: number | null
           updated_at?: string
           week_number?: number | null
         }
@@ -170,7 +334,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "games_playoff_series_fk"
+            foreignKeyName: "games_playoff_series_id_fkey"
             columns: ["playoff_series_id"]
             isOneToOne: false
             referencedRelation: "playoff_series"
@@ -226,6 +390,123 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: []
+      }
+      lineup_slots: {
+        Row: {
+          created_at: string
+          id: string
+          lineup_id: string
+          player_id: string
+          position_id: string
+          slot_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lineup_id: string
+          player_id: string
+          position_id: string
+          slot_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lineup_id?: string
+          player_id?: string
+          position_id?: string
+          slot_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineup_slots_lineup_id_fkey"
+            columns: ["lineup_id"]
+            isOneToOne: false
+            referencedRelation: "matchup_lineups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_slots_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_slots_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_state: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          is_open: boolean
+          season_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          is_open?: boolean
+          season_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          is_open?: boolean
+          season_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_state_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: true
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matchup_lineups: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matchup_lineups_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matchup_lineups_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       player_game_stats: {
         Row: {
@@ -407,12 +688,67 @@ export type Database = {
           },
         ]
       }
+      positions: {
+        Row: {
+          accepts_any: boolean
+          code: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          accepts_any?: boolean
+          code: string
+          id?: string
+          name: string
+          sort_order: number
+        }
+        Update: {
+          accepts_any?: boolean
+          code?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      roster_contract_years: {
+        Row: {
+          id: string
+          roster_entry_id: string
+          salary: number
+          season_label: string
+        }
+        Insert: {
+          id?: string
+          roster_entry_id: string
+          salary: number
+          season_label: string
+        }
+        Update: {
+          id?: string
+          roster_entry_id?: string
+          salary?: number
+          season_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roster_contract_years_roster_entry_id_fkey"
+            columns: ["roster_entry_id"]
+            isOneToOne: false
+            referencedRelation: "roster_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roster_entries: {
         Row: {
           acquired_via: string | null
           created_at: string
           id: string
+          ir_since_season: number | null
           player_id: string
+          position: string | null
           season: number
           slot: string
           status: string
@@ -423,7 +759,9 @@ export type Database = {
           acquired_via?: string | null
           created_at?: string
           id?: string
+          ir_since_season?: number | null
           player_id: string
+          position?: string | null
           season: number
           slot?: string
           status?: string
@@ -434,7 +772,9 @@ export type Database = {
           acquired_via?: string | null
           created_at?: string
           id?: string
+          ir_since_season?: number | null
           player_id?: string
+          position?: string | null
           season?: number
           slot?: string
           status?: string
@@ -454,6 +794,41 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roster_locks: {
+        Row: {
+          closed_at: string
+          closed_by: string | null
+          id: string
+          locks_at: string
+          season_id: string
+          week_number: number
+        }
+        Insert: {
+          closed_at?: string
+          closed_by?: string | null
+          id?: string
+          locks_at: string
+          season_id: string
+          week_number: number
+        }
+        Update: {
+          closed_at?: string
+          closed_by?: string | null
+          id?: string
+          locks_at?: string
+          season_id?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roster_locks_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
         ]
@@ -546,6 +921,58 @@ export type Database = {
           },
         ]
       }
+      team_penalties: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          origin_team_id: string | null
+          season_id: string
+          source: string | null
+          team_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          origin_team_id?: string | null
+          season_id: string
+          source?: string | null
+          team_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          origin_team_id?: string | null
+          season_id?: string
+          source?: string | null
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_penalties_origin_team_id_fkey"
+            columns: ["origin_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_penalties_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_penalties_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           abbreviation: string
@@ -625,6 +1052,207 @@ export type Database = {
           },
         ]
       }
+      transaction_approvals: {
+        Row: {
+          accepted: boolean | null
+          decided_at: string | null
+          gm_id: string | null
+          id: string
+          team_id: string
+          transaction_id: string
+        }
+        Insert: {
+          accepted?: boolean | null
+          decided_at?: string | null
+          gm_id?: string | null
+          id?: string
+          team_id: string
+          transaction_id: string
+        }
+        Update: {
+          accepted?: boolean | null
+          decided_at?: string | null
+          gm_id?: string | null
+          id?: string
+          team_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_approvals_gm_id_fkey"
+            columns: ["gm_id"]
+            isOneToOne: false
+            referencedRelation: "gms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_approvals_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_approvals_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transaction_items: {
+        Row: {
+          amount: number | null
+          asset_type: string
+          created_at: string
+          from_team_id: string | null
+          id: string
+          pick_id: string | null
+          player_id: string | null
+          source_penalty_id: string | null
+          to_team_id: string | null
+          transaction_id: string
+        }
+        Insert: {
+          amount?: number | null
+          asset_type: string
+          created_at?: string
+          from_team_id?: string | null
+          id?: string
+          pick_id?: string | null
+          player_id?: string | null
+          source_penalty_id?: string | null
+          to_team_id?: string | null
+          transaction_id: string
+        }
+        Update: {
+          amount?: number | null
+          asset_type?: string
+          created_at?: string
+          from_team_id?: string | null
+          id?: string
+          pick_id?: string | null
+          player_id?: string | null
+          source_penalty_id?: string | null
+          to_team_id?: string | null
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_items_from_team_id_fkey"
+            columns: ["from_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_items_pick_id_fkey"
+            columns: ["pick_id"]
+            isOneToOne: false
+            referencedRelation: "draft_picks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_items_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_items_source_penalty_id_fkey"
+            columns: ["source_penalty_id"]
+            isOneToOne: false
+            referencedRelation: "team_penalties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_items_to_team_id_fkey"
+            columns: ["to_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          admin_decided_at: string | null
+          admin_decided_by: string | null
+          admin_override: boolean
+          created_at: string
+          executed_at: string | null
+          id: string
+          notes: string | null
+          proposed_by: string | null
+          season_id: string
+          status: string
+          type: string
+          updated_at: string
+          week_number: number | null
+        }
+        Insert: {
+          admin_decided_at?: string | null
+          admin_decided_by?: string | null
+          admin_override?: boolean
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          notes?: string | null
+          proposed_by?: string | null
+          season_id: string
+          status?: string
+          type: string
+          updated_at?: string
+          week_number?: number | null
+        }
+        Update: {
+          admin_decided_at?: string | null
+          admin_decided_by?: string | null
+          admin_override?: boolean
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          notes?: string | null
+          proposed_by?: string | null
+          season_id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          week_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_admin_decided_by_fkey"
+            columns: ["admin_decided_by"]
+            isOneToOne: false
+            referencedRelation: "gms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "gms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -646,21 +1274,155 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_rosters: {
+        Row: {
+          created_at: string
+          id: string
+          player_id: string
+          position: string
+          season_id: string
+          status: string
+          team_id: string
+          week_number: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          player_id: string
+          position: string
+          season_id: string
+          status: string
+          team_id: string
+          week_number: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          player_id?: string
+          position?: string
+          season_id?: string
+          status?: string
+          team_id?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_rosters_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_rosters_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_rosters_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      has_role: {
+      consolidar_lock: {
+        Args: { _season_id: string; _week: number }
+        Returns: string
+      }
+      current_gm_id: { Args: never; Returns: string }
+      current_team_id: { Args: never; Returns: string }
+      fechar_semana: {
         Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
+          _locks_at: string
+          _season_id: string
+          _season_int: number
+          _week: number
         }
-        Returns: boolean
+        Returns: string
+      }
+      get_standings: {
+        Args: { season_ids: string[] }
+        Returns: {
+          d: number
+          gp: number
+          l: number
+          team_id: string
+          w: number
+        }[]
+      }
+      get_weeks_index: {
+        Args: never
+        Returns: {
+          season_id: string
+          week_number: number
+        }[]
+      }
+      has_role:
+        | {
+            Args: { _role: Database["public"]["Enums"]["app_role"] }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
+      team_cap_usage: {
+        Args: { _season_id: string }
+        Returns: {
+          available: number
+          penalties: number
+          salaries: number
+          team_id: string
+          used: number
+        }[]
+      }
+      team_game_stats_totals: {
+        Args: { season_ids: string[] }
+        Returns: {
+          ast: number
+          blk: number
+          game_id: string
+          opp_name: string
+          pts: number
+          reb: number
+          season_id: string
+          season_label: string
+          stl: number
+          team_id: string
+          team_name: string
+          three_pm: number
+          turnovers: number
+          week_number: number
+        }[]
+      }
+      team_season_standings: {
+        Args: { season_ids: string[] }
+        Returns: {
+          d: number
+          gp: number
+          l: number
+          season_id: string
+          season_label: string
+          team_id: string
+          team_name: string
+          w: number
+        }[]
       }
     }
     Enums: {
-      app_role: "admin" | "editor" | "viewer"
+      app_role: "admin" | "editor" | "viewer" | "gm"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -676,12 +1438,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -705,11 +1467,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -730,11 +1492,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -755,11 +1517,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -772,11 +1534,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -786,9 +1548,12 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
-      app_role: ["admin", "editor", "viewer"],
+      app_role: ["admin", "editor", "viewer", "gm"],
     },
   },
 } as const
