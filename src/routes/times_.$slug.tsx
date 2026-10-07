@@ -66,7 +66,17 @@ type LeagueStatRow = {
 
 type Season = { id: string; label: string; start_year: number; is_completed: boolean; is_current: boolean };
 
-type Penalty = { amount: number };
+type Penalty = { amount: number; season: { label: string } | null };
+
+type DraftPick = {
+  id: string;
+  round: number;
+  pick_number: number | null;
+  disputed: boolean;
+  original_team_id: string;
+  season: { label: string; start_year: number } | null;
+  original_team: { name: string; slug: string } | null;
+};
 
 const CATS = [
   { key: "pts",       label: "Pontos",       emoji: "🏀", lowerIsBetter: false },
@@ -80,7 +90,7 @@ const CATS = [
 
 type CatKey = typeof CATS[number]["key"];
 
-const CAP = 69_500_000;
+const CAP = 70_000_000;
 const CONTRACT_YEARS = ["26/27", "27/28", "28/29", "29/30", "30/31"];
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -200,7 +210,7 @@ function SectionTitle({ title }: { title: string }) {
 
 // ─── Roster table ─────────────────────────────────────────────────────────────
 
-function RosterTable({ entries, penaltyAmount, seasonLabel }: { entries: RosterEntry[]; penaltyAmount: number; seasonLabel: string }) {
+function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; penaltiesByYear: Record<string, number> }) {
   const active  = entries.filter((e) => e.status !== "injured_reserve");
   const injured = entries.filter((e) => e.status === "injured_reserve");
   const all     = [...active, ...injured];
@@ -220,10 +230,10 @@ function RosterTable({ entries, penaltyAmount, seasonLabel }: { entries: RosterE
     }
   }
 
-  // Cap disponível = CAP - total26/27 - multas
-  const currentYearTotal = totals["26/27"] ?? 0;
-  const capUsed = currentYearTotal + penaltyAmount;
-  const capAvailable = CAP - capUsed;
+  // Cap disponível do ano corrente (só define a cor do rodapé) = CAP - total26/27 - multas26/27
+  const currentYear = CONTRACT_YEARS[0];
+  const capAvailable = CAP - (totals[currentYear] ?? 0) - (penaltiesByYear[currentYear] ?? 0);
+  const hasPenalties = CONTRACT_YEARS.some((y) => (penaltiesByYear[y] ?? 0) > 0);
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
@@ -281,12 +291,13 @@ function RosterTable({ entries, penaltyAmount, seasonLabel }: { entries: RosterE
               </td>
             ))}
           </tr>
-          {penaltyAmount > 0 && (
+          {hasPenalties && (
             <tr className="border-t border-border/60 bg-muted/10 text-amber-600 dark:text-amber-400">
               <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={2}>Multas</td>
-              <td className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">{fmtSalary(penaltyAmount)}</td>
-              {CONTRACT_YEARS.slice(1).map((y) => (
-                <td key={y} className="px-3 py-2.5 hidden sm:table-cell" />
+              {CONTRACT_YEARS.map((y) => (
+                <td key={y} className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">
+                  {fmtSalary(penaltiesByYear[y] ?? 0)}
+                </td>
               ))}
             </tr>
           )}
@@ -299,16 +310,68 @@ function RosterTable({ entries, penaltyAmount, seasonLabel }: { entries: RosterE
             <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={2}>Cap disponível</td>
             {CONTRACT_YEARS.map((y, i) => {
               const yearSalary = totals[y] ?? 0;
-              const yearCap = CAP - yearSalary - (i === 0 ? penaltyAmount : 0);
+              const yearPenalty = penaltiesByYear[y] ?? 0;
+              const yearCap = CAP - yearSalary - yearPenalty;
               return (
                 <td key={y} className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">
-                  {yearSalary > 0 || i === 0 ? fmtSalaryFull(yearCap) : "—"}
+                  {yearSalary > 0 || yearPenalty > 0 || i === 0 ? fmtSalaryFull(yearCap) : "—"}
                 </td>
               );
             })}
           </tr>
         </tfoot>
       </table>
+    </div>
+  );
+}
+
+// ─── Draft picks ──────────────────────────────────────────────────────────────
+
+function DraftPicksList({ picks, teamId }: { picks: DraftPick[]; teamId: string }) {
+  if (picks.length === 0) {
+    return <p className="text-sm text-muted-foreground">Nenhuma pick de draft.</p>;
+  }
+
+  // Agrupa por temporada do draft (picks já vêm ordenadas)
+  const groups: { label: string; picks: DraftPick[] }[] = [];
+  for (const p of picks) {
+    const label = p.season?.label ?? "—";
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.picks.push(p);
+    else groups.push({ label, picks: [p] });
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {groups.map((g) => (
+        <div key={g.label} className="rounded-lg border border-border bg-card">
+          <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Draft {g.label}
+          </div>
+          <ul className="divide-y divide-border/60">
+            {g.picks.map((p) => {
+              const traded = p.original_team_id !== teamId;
+              return (
+                <li key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2.5 text-sm">
+                  <span className="font-medium">
+                    {p.round}ª rodada{p.pick_number != null && ` · pick ${p.pick_number}`}
+                  </span>
+                  {traded && (
+                    <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      via troca{p.original_team ? ` · ${p.original_team.name}` : ""}
+                    </span>
+                  )}
+                  {p.disputed && (
+                    <span className="inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                      em disputa
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
@@ -512,7 +575,8 @@ function TimePage() {
   const [allTeams, setAllTeams]             = useState<TeamLite[]>([]);
   const [team, setTeam]                     = useState<TeamDetail | null>(null);
   const [roster, setRoster]                 = useState<RosterEntry[]>([]);
-  const [penalty, setPenalty]               = useState<number>(0);
+  const [penaltiesByYear, setPenaltiesByYear] = useState<Record<string, number>>({});
+  const [picks, setPicks]                   = useState<DraftPick[]>([]);
   const [last5, setLast5]                   = useState<GameResult[]>([]);
   const [last5Stats, setLast5Stats]         = useState<TeamStatRow[]>([]);
   const [allSeasonStats, setAllSeasonStats] = useState<TeamStatRow[]>([]);
@@ -569,7 +633,6 @@ function TimePage() {
       if (!currentSeason) { setError("Sem temporada disponível."); setLoading(false); return; }
       setSeason(currentSeason);
       setSeasons(allSeasons);
-      const seasonId = currentSeason.id;
 
       // Estatísticas/jogos: mais recente com jogos finalizados
       const statsSeason = await pickDefaultStatsSeason(allSeasons);
@@ -607,14 +670,30 @@ function TimePage() {
       }));
       setRoster(rosterWithContracts);
 
-      // 5. Multas
+      // 5. Multas de todos os anos, mapeadas para a coluna de ano via seasons.label
       const { data: penaltyData } = await supabase
         .from("team_penalties")
-        .select("amount")
-        .eq("team_id", t.id)
-        .eq("season_id", seasonId);
-      const totalPenalty = ((penaltyData as Penalty[]) ?? []).reduce((sum, p) => sum + p.amount, 0);
-      setPenalty(totalPenalty);
+        .select("amount, season:seasons(label)")
+        .eq("team_id", t.id);
+      const byYear: Record<string, number> = {};
+      for (const p of (penaltyData as unknown as Penalty[]) ?? []) {
+        const label = p.season?.label;
+        if (label && CONTRACT_YEARS.includes(label)) byYear[label] = (byYear[label] ?? 0) + p.amount;
+      }
+      setPenaltiesByYear(byYear);
+
+      // 6. Picks de draft que o time possui hoje
+      const { data: pickData } = await supabase
+        .from("draft_picks")
+        .select("id, round, pick_number, disputed, original_team_id, season:seasons!draft_picks_draft_season_id_fkey(label, start_year), original_team:teams!draft_picks_original_team_id_fkey(name, slug)")
+        .eq("current_team_id", t.id)
+        .eq("is_used", false);
+      const sortedPicks = ((pickData as unknown as DraftPick[]) ?? []).sort((x, y) =>
+        (x.season?.start_year ?? 0) - (y.season?.start_year ?? 0) ||
+        x.round - y.round ||
+        (x.pick_number ?? Infinity) - (y.pick_number ?? Infinity)
+      );
+      setPicks(sortedPicks);
 
       setLoading(false);
     })();
@@ -768,7 +847,13 @@ function TimePage() {
         {/* 1. Elenco */}
         <section>
           <SectionTitle title={`Elenco ${season?.label ?? ""}`} />
-          <RosterTable entries={roster} penaltyAmount={penalty} seasonLabel={season?.label ?? ""} />
+          <RosterTable entries={roster} penaltiesByYear={penaltiesByYear} />
+        </section>
+
+        {/* 1b. Picks de draft */}
+        <section>
+          <SectionTitle title="Picks de draft" />
+          <DraftPicksList picks={picks} teamId={team.id} />
         </section>
 
         {/* Seletor da temporada das estatísticas (elenco acima segue a temporada corrente) */}
