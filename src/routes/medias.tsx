@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
+import { pickDefaultStatsSeason } from "../lib/seasons";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -382,8 +383,8 @@ function MediasPage() {
       setTeamMeta(tMap);
       setAllSeasonIds(fetchedSeasons.map((s) => s.id));
 
-      // Default: temporada atual
-      const current = fetchedSeasons.find((s) => s.is_current) ?? fetchedSeasons[0];
+      // Default: temporada mais recente com jogos finalizados
+      const current = await pickDefaultStatsSeason(fetchedSeasons);
       if (current) setSelectedSeason(current.id);
     })();
   }, []);
