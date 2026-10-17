@@ -9,9 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TrocarRouteImport } from './routes/trocar'
 import { Route as RegrasRouteImport } from './routes/regras'
 import { Route as RecordesRouteImport } from './routes/recordes'
 import { Route as NoticiasRouteImport } from './routes/noticias'
+import { Route as MercadoRouteImport } from './routes/mercado'
 import { Route as MediasRouteImport } from './routes/medias'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GmsRouteImport } from './routes/gms'
@@ -24,9 +26,15 @@ import { Route as ClassificacaoRouteImport } from './routes/classificacao'
 import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TimesSlugRouteImport } from './routes/times_.$slug'
+import { Route as AdminMercadoRouteImport } from './routes/admin.mercado'
 import { Route as AdminFecharSemanaRouteImport } from './routes/admin.fechar-semana'
 import { Route as AdminConsolidarLockRouteImport } from './routes/admin.consolidar-lock'
 
+const TrocarRoute = TrocarRouteImport.update({
+  id: '/trocar',
+  path: '/trocar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegrasRoute = RegrasRouteImport.update({
   id: '/regras',
   path: '/regras',
@@ -40,6 +48,11 @@ const RecordesRoute = RecordesRouteImport.update({
 const NoticiasRoute = NoticiasRouteImport.update({
   id: '/noticias',
   path: '/noticias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MercadoRoute = MercadoRouteImport.update({
+  id: '/mercado',
+  path: '/mercado',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MediasRoute = MediasRouteImport.update({
@@ -102,6 +115,11 @@ const TimesSlugRoute = TimesSlugRouteImport.update({
   path: '/times/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminMercadoRoute = AdminMercadoRouteImport.update({
+  id: '/admin/mercado',
+  path: '/admin/mercado',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminFecharSemanaRoute = AdminFecharSemanaRouteImport.update({
   id: '/admin/fechar-semana',
   path: '/admin/fechar-semana',
@@ -125,11 +143,14 @@ export interface FileRoutesByFullPath {
   '/gms': typeof GmsRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
+  '/mercado': typeof MercadoRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
+  '/admin/mercado': typeof AdminMercadoRoute
   '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesByTo {
@@ -144,11 +165,14 @@ export interface FileRoutesByTo {
   '/gms': typeof GmsRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
+  '/mercado': typeof MercadoRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
+  '/admin/mercado': typeof AdminMercadoRoute
   '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesById {
@@ -164,11 +188,14 @@ export interface FileRoutesById {
   '/gms': typeof GmsRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
+  '/mercado': typeof MercadoRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
+  '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
+  '/admin/mercado': typeof AdminMercadoRoute
   '/times_/$slug': typeof TimesSlugRoute
 }
 export interface FileRouteTypes {
@@ -185,11 +212,14 @@ export interface FileRouteTypes {
     | '/gms'
     | '/login'
     | '/medias'
+    | '/mercado'
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/trocar'
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
+    | '/admin/mercado'
     | '/times/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -204,11 +234,14 @@ export interface FileRouteTypes {
     | '/gms'
     | '/login'
     | '/medias'
+    | '/mercado'
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/trocar'
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
+    | '/admin/mercado'
     | '/times/$slug'
   id:
     | '__root__'
@@ -223,11 +256,14 @@ export interface FileRouteTypes {
     | '/gms'
     | '/login'
     | '/medias'
+    | '/mercado'
     | '/noticias'
     | '/recordes'
     | '/regras'
+    | '/trocar'
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
+    | '/admin/mercado'
     | '/times_/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -243,16 +279,26 @@ export interface RootRouteChildren {
   GmsRoute: typeof GmsRoute
   LoginRoute: typeof LoginRoute
   MediasRoute: typeof MediasRoute
+  MercadoRoute: typeof MercadoRoute
   NoticiasRoute: typeof NoticiasRoute
   RecordesRoute: typeof RecordesRoute
   RegrasRoute: typeof RegrasRoute
+  TrocarRoute: typeof TrocarRoute
   AdminConsolidarLockRoute: typeof AdminConsolidarLockRoute
   AdminFecharSemanaRoute: typeof AdminFecharSemanaRoute
+  AdminMercadoRoute: typeof AdminMercadoRoute
   TimesSlugRoute: typeof TimesSlugRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/trocar': {
+      id: '/trocar'
+      path: '/trocar'
+      fullPath: '/trocar'
+      preLoaderRoute: typeof TrocarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/regras': {
       id: '/regras'
       path: '/regras'
@@ -272,6 +318,13 @@ declare module '@tanstack/react-router' {
       path: '/noticias'
       fullPath: '/noticias'
       preLoaderRoute: typeof NoticiasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mercado': {
+      id: '/mercado'
+      path: '/mercado'
+      fullPath: '/mercado'
+      preLoaderRoute: typeof MercadoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/medias': {
@@ -358,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/mercado': {
+      id: '/admin/mercado'
+      path: '/admin/mercado'
+      fullPath: '/admin/mercado'
+      preLoaderRoute: typeof AdminMercadoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/fechar-semana': {
       id: '/admin/fechar-semana'
       path: '/admin/fechar-semana'
@@ -387,11 +447,14 @@ const rootRouteChildren: RootRouteChildren = {
   GmsRoute: GmsRoute,
   LoginRoute: LoginRoute,
   MediasRoute: MediasRoute,
+  MercadoRoute: MercadoRoute,
   NoticiasRoute: NoticiasRoute,
   RecordesRoute: RecordesRoute,
   RegrasRoute: RegrasRoute,
+  TrocarRoute: TrocarRoute,
   AdminConsolidarLockRoute: AdminConsolidarLockRoute,
   AdminFecharSemanaRoute: AdminFecharSemanaRoute,
+  AdminMercadoRoute: AdminMercadoRoute,
   TimesSlugRoute: TimesSlugRoute,
 }
 export const routeTree = rootRouteImport

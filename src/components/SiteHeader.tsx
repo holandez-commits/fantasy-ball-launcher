@@ -66,6 +66,14 @@ export function SiteHeader() {
                     Escalar
                   </Link>
                 )}
+                {(isGm || isAdmin) && (
+                  <Link
+                    to="/mercado"
+                    className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
+                  >
+                    Mercado
+                  </Link>
+                )}
                 {isAdmin && (
                   <Link
                     to="/admin/fechar-semana"
@@ -80,6 +88,14 @@ export function SiteHeader() {
                     className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
                   >
                     Consolidar
+                  </Link>
+                )}
+                {isAdmin && (
+                  <Link
+                    to="/admin/mercado"
+                    className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--chrome-muted)] hover:text-[color:var(--chrome-foreground)]"
+                  >
+                    Mercado (admin)
                   </Link>
                 )}
                 <span className="max-w-[180px] truncate text-xs text-[color:var(--chrome-muted)]">
@@ -140,7 +156,7 @@ export function SiteHeader() {
           {!loading && (
             <div className="mx-auto max-w-[1400px] border-t border-[color:var(--chrome-border)] px-5 py-3 text-sm">
               {user ? (
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span className="truncate text-[color:var(--chrome-muted)]">{user.email}</span>
                   {(isGm || isAdmin) && (
                     <Link
@@ -149,6 +165,15 @@ export function SiteHeader() {
                       className="text-[color:var(--chrome-muted)]"
                     >
                       Escalar
+                    </Link>
+                  )}
+                  {(isGm || isAdmin) && (
+                    <Link
+                      to="/mercado"
+                      onClick={() => setOpen(false)}
+                      className="text-[color:var(--chrome-muted)]"
+                    >
+                      Mercado
                     </Link>
                   )}
                   {isAdmin && (
@@ -167,6 +192,15 @@ export function SiteHeader() {
                       className="text-[color:var(--chrome-muted)]"
                     >
                       Consolidar escalações
+                    </Link>
+                  )}
+                  {isAdmin && (
+                    <Link
+                      to="/admin/mercado"
+                      onClick={() => setOpen(false)}
+                      className="text-[color:var(--chrome-muted)]"
+                    >
+                      Mercado (admin)
                     </Link>
                   )}
                   <button
