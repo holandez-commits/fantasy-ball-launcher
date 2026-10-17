@@ -13,6 +13,7 @@ import {
   type CurrentSeason,
 } from "@/lib/market";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -47,10 +48,10 @@ type TxRow = {
   proposed_by: string | null;
   created_at: string;
   proposerName: string | null;
-  teamName: string | null; // release/ir
-  playerName: string | null; // release/ir
-  multaResumo: string | null; // release
-  tradeItems: TradeItemView[] | null; // trade
+  teamName: string | null;
+  playerName: string | null;
+  multaResumo: string | null;
+  tradeItems: TradeItemView[] | null;
 };
 
 type IrRow = {
@@ -60,6 +61,10 @@ type IrRow = {
   teamName: string | null;
   irSince: number | null;
 };
+
+type SigningRow = { entryId: string; name: string; teamName: string | null };
+type PreviaLeilao = { playerName: string; teamName: string; salary: number };
+type PreviaCons = { fase: string; detalhe: string };
 
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto max-w-4xl px-4 py-12 md:px-6">{children}</div>;
@@ -81,6 +86,11 @@ function AdminMercadoPage() {
   const [fila, setFila] = useState<TxRow[]>([]);
   const [aprovadas, setAprovadas] = useState<TxRow[]>([]);
   const [irRows, setIrRows] = useState<IrRow[]>([]);
+  const [leilaoWeek, setLeilaoWeek] = useState<number | null>(null);
+  const [signings, setSignings] = useState<SigningRow[]>([]);
+  const [posInputs, setPosInputs] = useState<Record<string, string>>({});
+  const [prevLeilao, setPrevLeilao] = useState<PreviaLeilao[] | null>(null);
+  const [prevCons, setPrevCons] = useState<PreviaCons[] | null>(null);
 
   const [toggling, setToggling] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -99,7 +109,6 @@ function AdminMercadoPage() {
       setSeason(cur);
       setMarketOpen(await fetchMarketOpen(cur.id));
 
-      // proposed (release/ir), accepted (trade pronta p/ admin) e approved (aguardando execução)
       const txRes = await db
         .from("transactions")
         .select("id, type, status, week_number, proposed_by, created_at")
@@ -124,7 +133,6 @@ function AdminMercadoPage() {
         items = (itRes.data ?? []) as Item[];
       }
 
-      // Jogadores em IR (todos os times) — pra seção de reativação.
       const irRes = await db
         .from("roster_entries")
         .select("id, player_id, position, ir_since_season, team_id, player:players(full_name)")
@@ -138,6 +146,36 @@ function AdminMercadoPage() {
         team_id: string;
         player: { full_name: string } | null;
       }[];
+
+      // signings sem posição (contratações do leilão nascem com position NULL)
+      const sgRes = await db
+        .from("roster_entries")
+        .select("id, team_id, player:players(full_name), team:teams(name)")
+        .eq("season", cur.start_year)
+        .eq("acquired_via", "signing")
+        .is("position", null);
+      const sgEntries = (sgRes.data ?? []) as {
+        id: string;
+        team_id: string;
+        player: { full_name: string } | null;
+        team: { name: string } | null;
+      }[];
+      setSignings(
+        sgEntries.map((e) => ({
+          entryId: e.id,
+          name: e.player?.full_name ?? "—",
+          teamName: e.team?.name ?? null,
+        })),
+      );
+
+      // semana do leilão/consolidação = foto mais recente
+      const wkRes = await db
+        .from("weekly_rosters")
+        .select("week_number")
+        .eq("season_id", cur.id)
+        .order("week_number", { ascending: false })
+        .limit(1);
+      setLeilaoWeek((wkRes.data as { week_number: number }[] | null)?.[0]?.week_number ?? null);
 
       // Nomes
       const gmIds = [...new Set(txs.map((t) => t.proposed_by).filter(Boolean) as string[])];
@@ -186,7 +224,6 @@ function AdminMercadoPage() {
         ).map((p) => [p.id, `Pick ${p.round}ª · ${p.season?.label ?? "—"}`]),
       );
 
-      // Multa estimada das dispensas
       const releasePlayerItems = items.filter(
         (i) =>
           i.asset_type === "player" &&
@@ -268,7 +305,6 @@ function AdminMercadoPage() {
       };
 
       const enriched = txs.map(enrich);
-      // Fila do admin: release/ir em 'proposed' + trade em 'accepted'
       setFila(
         enriched.filter(
           (t) =>
@@ -363,6 +399,91 @@ function AdminMercadoPage() {
     }
   }
 
+  async function verPreviaLeilao() {
+    if (leilaoWeek == null || !season) return;
+    setBusyId("prev-leilao");
+    setResult(null);
+    const { data, error } = await callRpc("leilao_previa", {
+      _season_id: season.id,
+      _week: leilaoWeek,
+    });
+    setBusyId(null);
+    if (error) setResult({ ok: false, message: error.message });
+    else
+      setPrevLeilao(
+        ((data ?? []) as { player_name: string; team_name: string; salary_offer: number }[]).map(
+          (r) => ({ playerName: r.player_name, teamName: r.team_name, salary: r.salary_offer }),
+        ),
+      );
+  }
+
+  async function commitLeilao() {
+    if (leilaoWeek == null || !season) return;
+    setBusyId("commit-leilao");
+    setResult(null);
+    const { data, error } = await callRpc("leilao_commit", {
+      _season_id: season.id,
+      _week: leilaoWeek,
+    });
+    setBusyId(null);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: typeof data === "string" ? data : "Leilão consolidado." });
+      setPrevLeilao(null);
+      void load();
+    }
+  }
+
+  async function definirPosicao(entryId: string) {
+    const pos = (posInputs[entryId] ?? "").trim();
+    if (!pos) {
+      setResult({ ok: false, message: "Informe a posição." });
+      return;
+    }
+    setBusyId("pos:" + entryId);
+    setResult(null);
+    const { data, error } = await callRpc("set_signing_position", {
+      _roster_entry_id: entryId,
+      _position: pos,
+    });
+    setBusyId(null);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: typeof data === "string" ? data : "Posição definida." });
+      void load();
+    }
+  }
+
+  async function verPreviaCons() {
+    if (leilaoWeek == null) {
+      setResult({ ok: false, message: "Sem foto de semana pra prévia do leilão." });
+      return;
+    }
+    setBusyId("prev-cons");
+    setResult(null);
+    const { data, error } = await callRpc("consolidar_mercado_previa", { _week: leilaoWeek });
+    setBusyId(null);
+    if (error) setResult({ ok: false, message: error.message });
+    else setPrevCons(((data ?? []) as PreviaCons[]).map((r) => ({ fase: r.fase, detalhe: r.detalhe })));
+  }
+
+  async function commitCons() {
+    if (leilaoWeek == null) {
+      setResult({ ok: false, message: "Sem foto de semana." });
+      return;
+    }
+    setBusyId("commit-cons");
+    setResult(null);
+    const { data, error } = await callRpc("consolidar_mercado_commit", { _week: leilaoWeek });
+    setBusyId(null);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: typeof data === "string" ? data : "Consolidado." });
+      setPrevCons(null);
+      void load();
+    }
+  }
+
   if (forbidden) {
     return (
       <Shell>
@@ -412,8 +533,8 @@ function AdminMercadoPage() {
       </p>
       <h1 className="mt-1 font-display text-3xl">Mercado</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Abra/feche o mercado, aprove ou recuse propostas, execute dispensas, trocas e IR, e reative
-        lesionados.
+        Abra/feche o mercado, decida a fila, execute movimentações, rode o leilão e a consolidação
+        de domingo.
       </p>
 
       {result && (
@@ -444,8 +565,8 @@ function AdminMercadoPage() {
               )}
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Fechado = período de lances de FA; dispensas/trocas aprovadas ficam pra consolidação
-              de domingo.
+              Fechado = período de lances de FA; a consolidação de domingo processa a fila, roda o
+              leilão e reabre.
             </p>
           </div>
           <Button
@@ -596,6 +717,145 @@ function AdminMercadoPage() {
                 })}
               </div>
             )}
+          </section>
+
+          {/* Leilão */}
+          <section className="mt-12">
+            <h2 className="mb-2 font-display text-xl tracking-tight">
+              Leilão{leilaoWeek != null ? ` — semana ${leilaoWeek}` : ""}
+            </h2>
+            {leilaoWeek == null ? (
+              <p className="text-sm text-muted-foreground">
+                Sem foto de semana (`weekly_rosters`) — leilão indisponível.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void verPreviaLeilao()}
+                    disabled={busyId === "prev-leilao"}
+                  >
+                    {busyId === "prev-leilao" ? "..." : "Ver prévia do leilão"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void commitLeilao()}
+                    disabled={busyId === "commit-leilao"}
+                  >
+                    {busyId === "commit-leilao" ? "..." : "Consolidar só o leilão"}
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  "Consolidar só o leilão" cria os signings mas NÃO processa a fila nem reabre o
+                  mercado — no domingo, use a consolidação abaixo.
+                </p>
+                {prevLeilao &&
+                  (prevLeilao.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted-foreground">Nenhum vencedor projetado.</p>
+                  ) : (
+                    <ul className="mt-3 space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
+                      {prevLeilao.map((r, i) => (
+                        <li key={i} className="flex justify-between">
+                          <span>
+                            {r.playerName} → <span className="font-medium">{r.teamName}</span>
+                          </span>
+                          <span className="tabular-nums">{fmtMoney(r.salary)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ))}
+              </>
+            )}
+          </section>
+
+          {/* Definir posição dos signings */}
+          <section className="mt-12">
+            <h2 className="mb-2 font-display text-xl tracking-tight">
+              Contratações sem posição{signings.length > 0 ? ` (${signings.length})` : ""}
+            </h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Signings do leilão nascem sem posição. Defina (ex.: <code>PG</code> ou{" "}
+              <code>PG/SG</code>) pra o jogador ser escalável nos slots posicionais.
+            </p>
+            {signings.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma contratação aguardando posição.</p>
+            ) : (
+              <div className="space-y-3">
+                {signings.map((s) => (
+                  <div
+                    key={s.entryId}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{s.name}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{s.teamName ?? "—"}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="ex: PG"
+                        value={posInputs[s.entryId] ?? ""}
+                        onChange={(e) =>
+                          setPosInputs((cur) => ({ ...cur, [s.entryId]: e.target.value }))
+                        }
+                        className="w-28"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => void definirPosicao(s.entryId)}
+                        disabled={busyId === "pos:" + s.entryId}
+                      >
+                        {busyId === "pos:" + s.entryId ? "..." : "Definir"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Consolidação de domingo */}
+          <section className="mt-12">
+            <h2 className="mb-2 font-display text-xl tracking-tight">
+              Consolidação de domingo{leilaoWeek != null ? ` — semana ${leilaoWeek}` : ""}
+            </h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Processa a fila de dispensas/trocas aprovadas (FIFO), resolve o leilão e REABRE o
+              mercado. Só roda com o mercado fechado.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void verPreviaCons()}
+                disabled={busyId === "prev-cons"}
+              >
+                {busyId === "prev-cons" ? "..." : "Ver prévia"}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void commitCons()}
+                disabled={busyId === "commit-cons"}
+              >
+                {busyId === "commit-cons" ? "..." : "Consolidar domingo"}
+              </Button>
+            </div>
+            {prevCons &&
+              (prevCons.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">Nada a consolidar.</p>
+              ) : (
+                <ul className="mt-3 space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
+                  {prevCons.map((r, i) => (
+                    <li key={i} className="flex flex-wrap gap-x-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {r.fase}
+                      </span>
+                      <span>{r.detalhe}</span>
+                    </li>
+                  ))}
+                </ul>
+              ))}
           </section>
         </>
       )}

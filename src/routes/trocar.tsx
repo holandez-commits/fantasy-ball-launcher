@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
 import {
@@ -15,13 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/trocar")({
@@ -34,28 +27,31 @@ export const Route = createFileRoute("/trocar")({
   component: TrocarPage,
 });
 
+const PENALTY_MIN = 250_000;
+
 type TeamLite = { id: string; name: string };
-type PlayerAsset = { playerId: string; name: string; position: string | null; salary: number };
-type PickAsset = {
-  pickId: string;
-  round: number;
-  label: string;
-  viaTeam: string | null; // nome do time original, se veio por troca
-};
+type PlayerAsset = { kind: "player"; id: string; name: string; position: string | null; salary: number };
+type PickAsset = { kind: "pick"; id: string; label: string; viaTeam: string | null };
+type PenaltyAsset = { kind: "penalty"; id: string; label: string; saldo: number };
+type Asset = PlayerAsset | PickAsset | PenaltyAsset;
+type TeamAssets = { players: PlayerAsset[]; picks: PickAsset[]; penalties: PenaltyAsset[] };
+
+type Sel = { from: string; to: string; amount?: string };
+
+const akey = (a: Asset) => `${a.kind}:${a.id}`;
 
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto max-w-4xl px-4 py-12 md:px-6">{children}</div>;
 }
 
-// Default do prazo: +7 dias, formatado p/ datetime-local (horário local do browser).
 function defaultDeadline(): string {
   const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-async function loadTeamAssets(teamId: string, season: CurrentSeason) {
-  // Jogadores ativos
+async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<TeamAssets> {
+  // jogadores ativos
   const reRes = await db
     .from("roster_entries")
     .select("id, player_id, position, player:players(full_name)")
@@ -79,18 +75,19 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason) {
   }
   const players: PlayerAsset[] = entries
     .map((e) => ({
-      playerId: e.player_id,
+      kind: "player" as const,
+      id: e.player_id,
       name: e.player?.full_name ?? "—",
       position: e.position,
       salary: cy.find((c) => c.roster_entry_id === e.id && c.season_label === season.label)?.salary ?? 0,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  // Picks negociáveis (não usadas, não em disputa)
+  // picks negociáveis
   const pkRes = await db
     .from("draft_picks")
     .select(
-      "id, round, pick_number, original_team_id, season:seasons!draft_picks_draft_season_id_fkey(label, start_year), original_team:teams!draft_picks_original_team_id_fkey(name)",
+      "id, round, original_team_id, season:seasons!draft_picks_draft_season_id_fkey(label), original_team:teams!draft_picks_original_team_id_fkey(name)",
     )
     .eq("current_team_id", teamId)
     .eq("is_used", false)
@@ -99,50 +96,60 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason) {
     id: string;
     round: number;
     original_team_id: string;
-    season: { label: string; start_year: number } | null;
+    season: { label: string } | null;
     original_team: { name: string } | null;
   }[])
     .map((p) => ({
-      pickId: p.id,
-      round: p.round,
-      label: p.season?.label ?? "—",
+      kind: "pick" as const,
+      id: p.id,
+      label: `Pick ${p.round}ª · ${p.season?.label ?? "—"}`,
       viaTeam: p.original_team_id !== teamId ? p.original_team?.name ?? null : null,
     }))
-    .sort((a, b) => a.label.localeCompare(b.label) || a.round - b.round);
+    .sort((a, b) => a.label.localeCompare(b.label));
 
-  return { players, picks };
+  // multas com saldo (fatias negociáveis)
+  const penRes = await db
+    .from("team_penalties")
+    .select("id, amount, season:seasons(label)")
+    .eq("team_id", teamId)
+    .gt("amount", 0);
+  const penalties: PenaltyAsset[] = ((penRes.data ?? []) as {
+    id: string;
+    amount: number;
+    season: { label: string } | null;
+  }[])
+    .map((p) => ({
+      kind: "penalty" as const,
+      id: p.id,
+      label: `Multa ${p.season?.label ?? "—"}`,
+      saldo: p.amount,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return { players, picks, penalties };
 }
 
 function TrocarPage() {
   const { ready, forbidden, teamId } = useRequireAuth({ role: "gm" });
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [season, setSeason] = useState<CurrentSeason | null>(null);
   const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
-  const [otherTeams, setOtherTeams] = useState<TeamLite[]>([]);
-  const [myAssets, setMyAssets] = useState<{ players: PlayerAsset[]; picks: PickAsset[] }>({
-    players: [],
-    picks: [],
-  });
+  const [allTeams, setAllTeams] = useState<TeamLite[]>([]);
+  const [assetsByTeam, setAssetsByTeam] = useState<Record<string, TeamAssets>>({});
 
-  const [otherId, setOtherId] = useState<string>("");
-  const [otherAssets, setOtherAssets] = useState<{ players: PlayerAsset[]; picks: PickAsset[] }>({
-    players: [],
-    picks: [],
-  });
-  const [otherLoading, setOtherLoading] = useState(false);
-
-  // seleção: conjuntos de ids
-  const [sendPlayers, setSendPlayers] = useState<Set<string>>(new Set());
-  const [sendPicks, setSendPicks] = useState<Set<string>>(new Set());
-  const [recvPlayers, setRecvPlayers] = useState<Set<string>>(new Set());
-  const [recvPicks, setRecvPicks] = useState<Set<string>>(new Set());
+  const [otherIds, setOtherIds] = useState<string[]>([]);
+  const [selected, setSelected] = useState<Record<string, Sel>>({});
   const [deadline, setDeadline] = useState<string>(defaultDeadline());
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const teamName = useCallback(
+    (id: string) => allTeams.find((t) => t.id === id)?.name ?? "—",
+    [allTeams],
+  );
 
   const load = useCallback(async () => {
     if (!teamId) return;
@@ -163,13 +170,9 @@ function TrocarPage() {
         .select("id, name, is_active")
         .eq("is_active", true)
         .order("name");
-      setOtherTeams(
-        ((teamsRes.data ?? []) as TeamLite[] & { is_active: boolean }[]).filter(
-          (t) => t.id !== teamId,
-        ),
-      );
+      setAllTeams(((teamsRes.data ?? []) as (TeamLite & { is_active: boolean })[]).map((t) => ({ id: t.id, name: t.name })));
 
-      setMyAssets(await loadTeamAssets(teamId, cur));
+      setAssetsByTeam({ [teamId]: await loadTeamAssets(teamId, cur) });
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Erro ao carregar.");
     } finally {
@@ -181,61 +184,101 @@ function TrocarPage() {
     if (ready && teamId) void load();
   }, [ready, teamId, load]);
 
-  // carrega os ativos do outro time quando selecionado
-  useEffect(() => {
-    if (!otherId || !season) return;
-    let cancelled = false;
-    setOtherLoading(true);
-    setRecvPlayers(new Set());
-    setRecvPicks(new Set());
-    (async () => {
-      const a = await loadTeamAssets(otherId, season);
-      if (!cancelled) {
-        setOtherAssets(a);
-        setOtherLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [otherId, season]);
-
-  const totalItems =
-    sendPlayers.size + sendPicks.size + recvPlayers.size + recvPicks.size;
-
-  function toggle(set: Set<string>, setter: (s: Set<string>) => void, id: string) {
-    const next = new Set(set);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setter(next);
-    setResult(null);
-  }
-
-  const otherName = useMemo(
-    () => otherTeams.find((t) => t.id === otherId)?.name ?? "o outro time",
-    [otherTeams, otherId],
+  const participating = useMemo(
+    () => (teamId ? [teamId, ...otherIds] : otherIds),
+    [teamId, otherIds],
   );
 
-  async function propor() {
-    if (!teamId || !otherId) return;
-    const itens: Record<string, unknown>[] = [];
-    for (const pid of sendPlayers)
-      itens.push({ asset_type: "player", player_id: pid, from_team_id: teamId, to_team_id: otherId });
-    for (const kid of sendPicks)
-      itens.push({ asset_type: "pick", pick_id: kid, from_team_id: teamId, to_team_id: otherId });
-    for (const pid of recvPlayers)
-      itens.push({ asset_type: "player", player_id: pid, from_team_id: otherId, to_team_id: teamId });
-    for (const kid of recvPicks)
-      itens.push({ asset_type: "pick", pick_id: kid, from_team_id: otherId, to_team_id: teamId });
+  async function addTeam(id: string) {
+    if (!id || !season || id === teamId || otherIds.includes(id)) return;
+    setOtherIds((cur) => [...cur, id]);
+    if (!assetsByTeam[id]) {
+      const a = await loadTeamAssets(id, season);
+      setAssetsByTeam((cur) => ({ ...cur, [id]: a }));
+    }
+  }
 
+  function removeTeam(id: string) {
+    setOtherIds((cur) => cur.filter((t) => t !== id));
+    // dropa itens que envolvem o time removido
+    setSelected((cur) => {
+      const next: Record<string, Sel> = {};
+      for (const [k, v] of Object.entries(cur)) {
+        if (v.from !== id && v.to !== id) next[k] = v;
+      }
+      return next;
+    });
+  }
+
+  function destDefault(fromTeam: string): string {
+    return participating.find((t) => t !== fromTeam) ?? "";
+  }
+
+  function toggleAsset(a: Asset, fromTeam: string) {
+    setResult(null);
+    const k = akey(a);
+    setSelected((cur) => {
+      const next = { ...cur };
+      if (next[k]) {
+        delete next[k];
+      } else {
+        next[k] = {
+          from: fromTeam,
+          to: destDefault(fromTeam),
+          amount: a.kind === "penalty" ? String(a.saldo) : undefined,
+        };
+      }
+      return next;
+    });
+  }
+
+  function setDest(k: string, to: string) {
+    setSelected((cur) => ({ ...cur, [k]: { ...cur[k], to } }));
+  }
+  function setAmount(k: string, amount: string) {
+    setSelected((cur) => ({ ...cur, [k]: { ...cur[k], amount } }));
+  }
+
+  const count = Object.keys(selected).length;
+
+  async function propor() {
+    if (!teamId) return;
+    const itens: Record<string, unknown>[] = [];
+    for (const [k, sel] of Object.entries(selected)) {
+      const [kind, id] = k.split(":");
+      if (!sel.to) {
+        setResult({ ok: false, message: "Todo item precisa de um time de destino." });
+        return;
+      }
+      if (sel.to === sel.from) {
+        setResult({ ok: false, message: "Item com origem igual ao destino." });
+        return;
+      }
+      if (kind === "player") {
+        itens.push({ asset_type: "player", player_id: id, from_team_id: sel.from, to_team_id: sel.to });
+      } else if (kind === "pick") {
+        itens.push({ asset_type: "pick", pick_id: id, from_team_id: sel.from, to_team_id: sel.to });
+      } else {
+        const amt = Math.round(Number(sel.amount));
+        if (!amt || amt < PENALTY_MIN) {
+          setResult({ ok: false, message: `Fatia de multa mínima é ${fmtMoney(PENALTY_MIN)} (enviado).` });
+          return;
+        }
+        itens.push({
+          asset_type: "penalty",
+          source_penalty_id: id,
+          from_team_id: sel.from,
+          to_team_id: sel.to,
+          amount: amt,
+        });
+      }
+    }
     if (itens.length === 0) {
       setResult({ ok: false, message: "Selecione ao menos um ativo pra trocar." });
       return;
     }
 
-    // datetime-local -> ISO com offset local
     const deadlineISO = deadline ? new Date(deadline).toISOString() : null;
-
     setSubmitting(true);
     setResult(null);
     const { error } = await callRpc("propor_troca", {
@@ -247,12 +290,8 @@ function TrocarPage() {
     if (error) {
       setResult({ ok: false, message: error.message });
     } else {
-      setResult({ ok: true, message: "Troca proposta! Aguardando o aceite do outro time." });
-      // limpa a seleção
-      setSendPlayers(new Set());
-      setSendPicks(new Set());
-      setRecvPlayers(new Set());
-      setRecvPicks(new Set());
+      setResult({ ok: true, message: "Troca proposta! Aguardando o aceite dos outros times." });
+      setSelected({});
     }
   }
 
@@ -276,9 +315,11 @@ function TrocarPage() {
     );
   }
 
+  const addable = allTeams.filter((t) => t.id !== teamId && !otherIds.includes(t.id));
+
   return (
     <Shell>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-6">
         <Link to="/mercado" className="text-sm text-muted-foreground hover:text-foreground">
           ← Mercado
         </Link>
@@ -288,8 +329,8 @@ function TrocarPage() {
       </p>
       <h1 className="mt-1 font-display text-3xl">Propor troca</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Troca entre dois times, com jogadores e picks. O outro time aceita, depois o admin aprova e
-        executa. O cap e as vagas são checados já na proposta.
+        Envolva 2 ou mais times. Marque, por time, o que cada um envia (jogador, pick ou fatia de
+        multa) e pra quem. Cap e vagas são checados já na proposta.
       </p>
 
       <div className="mt-6">
@@ -312,51 +353,72 @@ function TrocarPage() {
         <Skeleton className="mt-8 h-96 w-full" />
       ) : (
         <>
-          {/* Seleciona o outro time */}
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Label htmlFor="other" className="text-sm">
-              Trocar com
-            </Label>
-            <Select value={otherId} onValueChange={setOtherId}>
-              <SelectTrigger id="other" className="w-64">
-                <SelectValue placeholder="Selecione o time" />
-              </SelectTrigger>
-              <SelectContent>
-                {otherTeams.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Times envolvidos */}
+          <section className="mt-8">
+            <Label className="text-sm">Times na troca</Label>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-[color:var(--court)]/15 px-3 py-1 text-sm font-medium">
+                {teamName(teamId)} <span className="ml-1 text-xs text-muted-foreground">(você)</span>
+              </span>
+              {otherIds.map((id) => (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-sm"
+                >
+                  {teamName(id)}
+                  <button
+                    type="button"
+                    onClick={() => removeTeam(id)}
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                    aria-label="remover time"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              {addable.length > 0 && (
+                <select
+                  value=""
+                  onChange={(e) => void addTeam(e.target.value)}
+                  className="rounded-md border border-border bg-card px-3 py-1.5 text-sm"
+                >
+                  <option value="">+ adicionar time</option>
+                  {addable.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </section>
 
-          {otherId && (
-            <div className="mt-8 grid gap-6 md:grid-cols-2">
-              <AssetColumn
-                title="Você envia"
-                loading={false}
-                players={myAssets.players}
-                picks={myAssets.picks}
-                selPlayers={sendPlayers}
-                selPicks={sendPicks}
-                onTogglePlayer={(id) => toggle(sendPlayers, setSendPlayers, id)}
-                onTogglePick={(id) => toggle(sendPicks, setSendPicks, id)}
-              />
-              <AssetColumn
-                title={`Você recebe de ${otherName}`}
-                loading={otherLoading}
-                players={otherAssets.players}
-                picks={otherAssets.picks}
-                selPlayers={recvPlayers}
-                selPicks={recvPicks}
-                onTogglePlayer={(id) => toggle(recvPlayers, setRecvPlayers, id)}
-                onTogglePick={(id) => toggle(recvPicks, setRecvPicks, id)}
-              />
+          {/* Painel por time: o que ele envia */}
+          {otherIds.length === 0 ? (
+            <p className="mt-8 text-sm text-muted-foreground">
+              Adicione ao menos um outro time pra montar a troca.
+            </p>
+          ) : (
+            <div className="mt-6 space-y-6">
+              {participating.map((tid) => (
+                <TeamPanel
+                  key={tid}
+                  teamId={tid}
+                  teamLabel={teamName(tid)}
+                  isMine={tid === teamId}
+                  assets={assetsByTeam[tid]}
+                  participating={participating}
+                  teamName={teamName}
+                  selected={selected}
+                  onToggle={(a) => toggleAsset(a, tid)}
+                  onDest={setDest}
+                  onAmount={setAmount}
+                />
+              ))}
             </div>
           )}
 
-          {otherId && (
+          {otherIds.length > 0 && (
             <div className="mt-8 flex flex-wrap items-end gap-4">
               <div className="space-y-1">
                 <Label htmlFor="deadline" className="text-sm">
@@ -370,8 +432,8 @@ function TrocarPage() {
                   className="w-56"
                 />
               </div>
-              <Button onClick={() => void propor()} disabled={submitting || totalItems === 0}>
-                {submitting ? "Enviando..." : `Propor troca (${totalItems})`}
+              <Button onClick={() => void propor()} disabled={submitting || count === 0}>
+                {submitting ? "Enviando..." : `Propor troca (${count})`}
               </Button>
             </div>
           )}
@@ -381,90 +443,125 @@ function TrocarPage() {
   );
 }
 
-function AssetColumn({
-  title,
-  loading,
-  players,
-  picks,
-  selPlayers,
-  selPicks,
-  onTogglePlayer,
-  onTogglePick,
+function TeamPanel({
+  teamId,
+  teamLabel,
+  isMine,
+  assets,
+  participating,
+  teamName,
+  selected,
+  onToggle,
+  onDest,
+  onAmount,
 }: {
-  title: string;
-  loading: boolean;
-  players: PlayerAsset[];
-  picks: PickAsset[];
-  selPlayers: Set<string>;
-  selPicks: Set<string>;
-  onTogglePlayer: (id: string) => void;
-  onTogglePick: (id: string) => void;
+  teamId: string;
+  teamLabel: string;
+  isMine: boolean;
+  assets: TeamAssets | undefined;
+  participating: string[];
+  teamName: (id: string) => string;
+  selected: Record<string, Sel>;
+  onToggle: (a: Asset) => void;
+  onDest: (k: string, to: string) => void;
+  onAmount: (k: string, amount: string) => void;
 }) {
+  const dests = participating.filter((t) => t !== teamId);
+  const all: Asset[] = assets
+    ? [...assets.players, ...assets.picks, ...assets.penalties]
+    : [];
+
+  const row = (a: Asset, main: React.ReactNode) => {
+    const k = akey(a);
+    const sel = selected[k];
+    const on = !!sel;
+    return (
+      <div key={k} className="px-4 py-2.5">
+        <label className="flex cursor-pointer items-center gap-3 text-sm">
+          <input type="checkbox" checked={on} onChange={() => onToggle(a)} className="h-4 w-4" />
+          <span className="flex-1">{main}</span>
+        </label>
+        {on && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 pl-7 text-sm">
+            <span className="text-xs text-muted-foreground">envia para</span>
+            <select
+              value={sel.to}
+              onChange={(e) => onDest(k, e.target.value)}
+              className="rounded-md border border-border bg-card px-2 py-1 text-sm"
+            >
+              <option value="">— escolher —</option>
+              {dests.map((d) => (
+                <option key={d} value={d}>
+                  {teamName(d)}
+                </option>
+              ))}
+            </select>
+            {a.kind === "penalty" && (
+              <>
+                <span className="text-xs text-muted-foreground">valor (mín {fmtMoney(PENALTY_MIN)})</span>
+                <Input
+                  type="number"
+                  min={PENALTY_MIN}
+                  step={50000}
+                  value={sel.amount ?? ""}
+                  onChange={(e) => onAmount(k, e.target.value)}
+                  className="w-32"
+                />
+                <span className="text-xs text-muted-foreground">de {fmtMoney(a.saldo)}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card">
       <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
+        {teamLabel} envia{isMine ? " (você)" : ""}
       </div>
-      {loading ? (
+      {!assets ? (
         <div className="p-4">
-          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-24 w-full" />
         </div>
+      ) : all.length === 0 ? (
+        <p className="px-4 py-6 text-sm text-muted-foreground">Nada negociável.</p>
       ) : (
         <div className="divide-y divide-border/60">
-          {players.length === 0 && picks.length === 0 && (
-            <p className="px-4 py-6 text-sm text-muted-foreground">Nada negociável.</p>
-          )}
-          {players.map((p) => {
-            const on = selPlayers.has(p.playerId);
-            return (
-              <label
-                key={p.playerId}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/40",
-                  on && "bg-[color:var(--court)]/10",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={on}
-                  onChange={() => onTogglePlayer(p.playerId)}
-                  className="h-4 w-4"
-                />
-                <span className="flex-1 font-medium">{p.name}</span>
-                <span className="text-xs text-muted-foreground">{p.position ?? "—"}</span>
-                <span className="w-20 text-right tabular-nums text-muted-foreground">
+          {assets.players.map((p) =>
+            row(
+              p,
+              <span>
+                <span className="font-medium">{p.name}</span>
+                <span className="ml-2 text-xs text-muted-foreground">{p.position ?? "—"}</span>
+                <span className="ml-2 text-xs tabular-nums text-muted-foreground">
                   {p.salary ? fmtMoney(p.salary) : "—"}
                 </span>
-              </label>
-            );
-          })}
-          {picks.map((k) => {
-            const on = selPicks.has(k.pickId);
-            return (
-              <label
-                key={k.pickId}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/40",
-                  on && "bg-[color:var(--court)]/10",
+              </span>,
+            ),
+          )}
+          {assets.picks.map((p) =>
+            row(
+              p,
+              <span>
+                {p.label}
+                {p.viaTeam && (
+                  <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    via {p.viaTeam}
+                  </span>
                 )}
-              >
-                <input
-                  type="checkbox"
-                  checked={on}
-                  onChange={() => onTogglePick(k.pickId)}
-                  className="h-4 w-4"
-                />
-                <span className="flex-1">
-                  Pick {k.round}ª rod. · {k.label}
-                  {k.viaTeam && (
-                    <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                      via {k.viaTeam}
-                    </span>
-                  )}
-                </span>
-              </label>
-            );
-          })}
+              </span>,
+            ),
+          )}
+          {assets.penalties.map((p) =>
+            row(
+              p,
+              <span className="text-amber-700 dark:text-amber-400">
+                {p.label} · saldo {fmtMoney(p.saldo)}
+              </span>,
+            ),
+          )}
         </div>
       )}
     </div>

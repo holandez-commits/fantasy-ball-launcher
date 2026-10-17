@@ -16,6 +16,7 @@ import { Route as NoticiasRouteImport } from './routes/noticias'
 import { Route as MercadoRouteImport } from './routes/mercado'
 import { Route as MediasRouteImport } from './routes/medias'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LeilaoRouteImport } from './routes/leilao'
 import { Route as GmsRouteImport } from './routes/gms'
 import { Route as FreeAgentsRouteImport } from './routes/free-agents'
 import { Route as EscalarRouteImport } from './routes/escalar'
@@ -63,6 +64,11 @@ const MediasRoute = MediasRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeilaoRoute = LeilaoRouteImport.update({
+  id: '/leilao',
+  path: '/leilao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GmsRoute = GmsRouteImport.update({
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/escalar': typeof EscalarRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/leilao': typeof LeilaoRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/escalar': typeof EscalarRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/leilao': typeof LeilaoRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/escalar': typeof EscalarRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/leilao': typeof LeilaoRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/escalar'
     | '/free-agents'
     | '/gms'
+    | '/leilao'
     | '/login'
     | '/medias'
     | '/mercado'
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/escalar'
     | '/free-agents'
     | '/gms'
+    | '/leilao'
     | '/login'
     | '/medias'
     | '/mercado'
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/escalar'
     | '/free-agents'
     | '/gms'
+    | '/leilao'
     | '/login'
     | '/medias'
     | '/mercado'
@@ -277,6 +289,7 @@ export interface RootRouteChildren {
   EscalarRoute: typeof EscalarRoute
   FreeAgentsRoute: typeof FreeAgentsRoute
   GmsRoute: typeof GmsRoute
+  LeilaoRoute: typeof LeilaoRoute
   LoginRoute: typeof LoginRoute
   MediasRoute: typeof MediasRoute
   MercadoRoute: typeof MercadoRoute
@@ -339,6 +352,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leilao': {
+      id: '/leilao'
+      path: '/leilao'
+      fullPath: '/leilao'
+      preLoaderRoute: typeof LeilaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gms': {
@@ -445,6 +465,7 @@ const rootRouteChildren: RootRouteChildren = {
   EscalarRoute: EscalarRoute,
   FreeAgentsRoute: FreeAgentsRoute,
   GmsRoute: GmsRoute,
+  LeilaoRoute: LeilaoRoute,
   LoginRoute: LoginRoute,
   MediasRoute: MediasRoute,
   MercadoRoute: MercadoRoute,

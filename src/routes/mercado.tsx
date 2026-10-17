@@ -433,9 +433,14 @@ function MercadoPage() {
             admin.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/trocar">Propor troca</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link to="/leilao">Leilão</Link>
+          </Button>
+          <Button asChild>
+            <Link to="/trocar">Propor troca</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="mt-6">
