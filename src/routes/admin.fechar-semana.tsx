@@ -39,7 +39,7 @@ type WeekEntry = { season_id: string; week_number: number };
 // Brasília não tem horário de verão desde 2019: offset fixo -03:00.
 const BRT_OFFSET = "-03:00";
 
-// Tipagem frouxa: fechar_semana não está no types.ts (defasado).
+// Tipagem frouxa: fechar_escalacao_semanal não está no types.ts (defasado).
 const callRpc = (fn: string, args?: Record<string, unknown>) =>
   (
     supabase.rpc as unknown as (
@@ -117,10 +117,9 @@ function FecharSemanaPage() {
   async function confirm() {
     if (!season) return;
     setSubmitting(true);
-    const { data, error } = await callRpc("fechar_semana", {
+    const { data, error } = await callRpc("fechar_escalacao_semanal", {
       _season_id: season.id,
       _week: weekNum,
-      _season_int: season.start_year,
       _locks_at: `${locksAt}:00${BRT_OFFSET}`,
     });
     setSubmitting(false);
@@ -147,9 +146,10 @@ function FecharSemanaPage() {
   return (
     <div className="mx-auto max-w-xl px-4 py-12">
       <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Admin</p>
-      <h1 className="mt-1 font-display text-3xl">Fechar semana</h1>
+      <h1 className="mt-1 font-display text-3xl">Travar escalação da semana</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Congela o elenco atual dos times e define o prazo de travamento das escalações da semana.
+        Define o prazo de travamento (lock) das escalações da semana. A foto do elenco (função
+        fechar_semana) é um passo separado, feito depois do prazo.
       </p>
 
       {loadError && (
@@ -229,13 +229,13 @@ function FecharSemanaPage() {
         </div>
 
         <Button type="submit" disabled={!canSubmit}>
-          Fechar semana
+          Travar semana
         </Button>
       </form>
 
       {result && (
         <Alert variant={result.ok ? "default" : "destructive"} className="mt-6">
-          <AlertTitle>{result.ok ? "Semana fechada" : "Não foi possível fechar a semana"}</AlertTitle>
+          <AlertTitle>{result.ok ? "Semana travada" : "Não foi possível travar a semana"}</AlertTitle>
           <AlertDescription>{result.message}</AlertDescription>
         </Alert>
       )}
@@ -243,11 +243,11 @@ function FecharSemanaPage() {
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !submitting && setConfirmOpen(o)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar fechamento da semana</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar trava da semana</AlertDialogTitle>
             <AlertDialogDescription>
-              Isso vai congelar o elenco atual de todos os times e travar as escalações da semana{" "}
-              {weekNum} da {season?.label} no prazo {locksAt ? formatBrt(locksAt) : ""}. A ação
-              grava no banco e não deve ser repetida sem necessidade.
+              Isso vai definir o prazo de travamento (lock) das escalações da semana{" "}
+              {weekNum} da {season?.label} em {locksAt ? formatBrt(locksAt) : ""}. A ação grava no
+              banco e pode ser repetida para ajustar o prazo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

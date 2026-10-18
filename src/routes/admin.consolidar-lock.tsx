@@ -35,7 +35,7 @@ export const Route = createFileRoute("/admin/consolidar-lock")({
 type SeasonOpt = { id: string; label: string; start_year: number; is_current: boolean };
 type LockRow = { season_id: string; week_number: number; locks_at: string };
 
-// Tipagem frouxa: consolidar_lock e roster_locks não estão no types.ts (defasado).
+// Tipagem frouxa: consolidar_escalacoes_pendentes e roster_locks não estão no types.ts (defasado).
 const callRpc = (fn: string, args?: Record<string, unknown>) =>
   (
     supabase.rpc as unknown as (
@@ -117,7 +117,7 @@ function ConsolidarLockPage() {
   async function confirm() {
     if (!season || !lock) return;
     setSubmitting(true);
-    const { data, error } = await callRpc("consolidar_lock", {
+    const { data, error } = await callRpc("consolidar_escalacoes_pendentes", {
       _season_id: season.id,
       _week: lock.week_number,
     });
