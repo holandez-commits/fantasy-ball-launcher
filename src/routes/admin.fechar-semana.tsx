@@ -70,6 +70,11 @@ function FecharSemanaPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Segunda ação da tela: a FOTO (fechar_semana) — estado próprio p/ não misturar com a trava.
+  const [fotoOpen, setFotoOpen] = useState(false);
+  const [fotoSubmitting, setFotoSubmitting] = useState(false);
+  const [fotoResult, setFotoResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   useEffect(() => {
     if (!ready) return;
     (async () => {
@@ -106,6 +111,8 @@ function FecharSemanaPage() {
   const weekValid =
     !!season && Number.isInteger(weekNum) && weekNum >= 1 && weekNum <= season.total_weeks;
   const canSubmit = !!season && weekValid && !!locksAt && !submitting;
+  // A foto não precisa de prazo (locksAt), só de temporada + semana válida.
+  const canFoto = !!season && weekValid && !fotoSubmitting;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -131,6 +138,23 @@ function FecharSemanaPage() {
     }
   }
 
+  async function confirmFoto() {
+    if (!season) return;
+    setFotoSubmitting(true);
+    const { data, error } = await callRpc("fechar_semana", {
+      _season_id: season.id,
+      _week: weekNum,
+      _season_int: season.start_year,
+    });
+    setFotoSubmitting(false);
+    setFotoOpen(false);
+    if (error) {
+      setFotoResult({ ok: false, message: error.message });
+    } else {
+      setFotoResult({ ok: true, message: typeof data === "string" ? data : "Foto do elenco salva." });
+    }
+  }
+
   if (forbidden) {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
@@ -148,8 +172,8 @@ function FecharSemanaPage() {
       <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Admin</p>
       <h1 className="mt-1 font-display text-3xl">Travar escalação da semana</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Define o prazo de travamento (lock) das escalações da semana. A foto do elenco (função
-        fechar_semana) é um passo separado, feito depois do prazo.
+        Define o prazo de travamento (lock) das escalações da semana. A foto do elenco (retrato do
+        elenco na semana) é um passo separado — veja a seção abaixo.
       </p>
 
       {loadError && (
@@ -240,6 +264,52 @@ function FecharSemanaPage() {
         </Alert>
       )}
 
+      <div className="my-8 h-px bg-border" />
+
+      <h2 className="font-display text-2xl">Tirar foto do elenco</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Grava o retrato (weekly_rosters) da semana a partir do elenco atual — passo depois do prazo.
+        Usa a temporada e a semana selecionadas acima. É idempotente (refaz a foto).
+      </p>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-4"
+        disabled={!canFoto}
+        onClick={() => {
+          setFotoResult(null);
+          setFotoOpen(true);
+        }}
+      >
+        Tirar foto da semana
+      </Button>
+
+      {fotoResult && (
+        <Alert variant={fotoResult.ok ? "default" : "destructive"} className="mt-6">
+          <AlertTitle>{fotoResult.ok ? "Foto salva" : "Não foi possível tirar a foto"}</AlertTitle>
+          <AlertDescription>{fotoResult.message}</AlertDescription>
+        </Alert>
+      )}
+
+      <AlertDialog open={fotoOpen} onOpenChange={(o) => !fotoSubmitting && setFotoOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar foto do elenco</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso vai (re)gravar o retrato do elenco de todos os times na semana {weekNum} da{" "}
+              {season?.label}, a partir do elenco atual. Ação com efeito no banco.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={fotoSubmitting}>Cancelar</AlertDialogCancel>
+            <Button onClick={confirmFoto} disabled={fotoSubmitting}>
+              {fotoSubmitting ? "Salvando..." : "Confirmar e tirar foto"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !submitting && setConfirmOpen(o)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -253,7 +323,7 @@ function FecharSemanaPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <Button onClick={confirm} disabled={submitting}>
-              {submitting ? "Fechando..." : "Confirmar e fechar"}
+              {submitting ? "Travando..." : "Confirmar e travar"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
