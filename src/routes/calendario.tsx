@@ -12,6 +12,7 @@ type TeamRow = {
   id: string;
   name: string;
   slug: string;
+  is_active: boolean;
   logo_url: string | null;
   primary_color: string | null;
 };
@@ -197,7 +198,7 @@ function CalendarioPage() {
           .from("seasons")
           .select("id, label, start_year, is_current")
           .order("start_year", { ascending: false }),
-        supabase.from("teams").select("id, name, slug, logo_url, primary_color"),
+        supabase.from("teams").select("id, name, slug, is_active, logo_url, primary_color"),
       ]);
       const allSeasons = (seasonsRes.data ?? []) as Season[];
       const current = allSeasons.find((s) => s.is_current) ?? allSeasons[0];
@@ -242,8 +243,10 @@ function CalendarioPage() {
     return ws;
   }, [games]);
 
+  // Só os 24 times ativos no filtro (o mapa segue com todos, p/ renderizar
+  // jogos de temporadas antigas que envolvam times extintos).
   const teamOptions = useMemo(
-    () => [...teams].sort((a, b) => a.name.localeCompare(b.name)),
+    () => teams.filter((t) => t.is_active).sort((a, b) => a.name.localeCompare(b.name)),
     [teams],
   );
 
