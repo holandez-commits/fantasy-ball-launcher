@@ -1,20 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PagePlaceholder } from "../components/PagePlaceholder";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Tela aposentada: "/escalacoes" (placeholder) foi descontinuada.
+// A escalação do GM vive em "/escalar". Redireciona pra home para não
+// deixar link morto (o item sumiu do menu).
 export const Route = createFileRoute("/escalacoes")({
-  head: () => ({
-    meta: [
-      { title: "Escalações — Liga Bola Presa de Fantasy" },
-      { name: "description", content: "Escalações da rodada na Liga Bola Presa de Fantasy." },
-      { property: "og:title", content: "Escalações — Liga Bola Presa" },
-      { property: "og:description", content: "Escalações da rodada atual." },
-    ],
-  }),
-  component: () => (
-    <PagePlaceholder
-      eyebrow="Rodada atual"
-      title="Escalações"
-      description="Escalações de cada GM serão exibidas aqui, sincronizadas com a planilha de escalações."
-    />
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
+  },
 });

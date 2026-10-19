@@ -12,11 +12,13 @@ type AuthState = {
   isGm: boolean;
   gmId: string | null;
   teamId: string | null;
+  /** slug do time ativo do GM logado (para o atalho "Meu Elenco") */
+  teamSlug: string | null;
   signOut: () => Promise<void>;
 };
 
-type Profile = { roles: string[]; gmId: string | null; teamId: string | null };
-const EMPTY_PROFILE: Profile = { roles: [], gmId: null, teamId: null };
+type Profile = { roles: string[]; gmId: string | null; teamId: string | null; teamSlug: string | null };
+const EMPTY_PROFILE: Profile = { roles: [], gmId: null, teamId: null, teamSlug: null };
 
 const AuthContext = createContext<AuthState | null>(null);
 
@@ -34,10 +36,17 @@ async function loadProfile(userId: string): Promise<Profile> {
     callRpc("current_gm_id"),
     callRpc("current_team_id"),
   ]);
+  const teamId = teamRes.error ? null : (teamRes.data ?? null);
+  let teamSlug: string | null = null;
+  if (teamId) {
+    const slugRes = await supabase.from("teams").select("slug").eq("id", teamId).maybeSingle();
+    teamSlug = ((slugRes.data as { slug: string } | null)?.slug) ?? null;
+  }
   return {
     roles: ((rolesRes.data ?? []) as { role: string }[]).map((r) => r.role),
     gmId: gmRes.error ? null : (gmRes.data ?? null),
-    teamId: teamRes.error ? null : (teamRes.data ?? null),
+    teamId,
+    teamSlug,
   };
 }
 
@@ -87,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isGm: profile.roles.includes("gm"),
     gmId: profile.gmId,
     teamId: profile.teamId,
+    teamSlug: profile.teamSlug,
     signOut: async () => {
       await supabase.auth.signOut();
     },

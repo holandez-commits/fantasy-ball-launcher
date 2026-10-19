@@ -1,6 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { SiteHeader } from "../components/SiteHeader";
 import { AppSidebar } from "../components/AppSidebar";
+import { MobileNav } from "../components/MobileNav";
 import { SiteFooter } from "../components/SiteFooter";
 import { AuthProvider } from "@/lib/auth";
 
@@ -80,16 +80,14 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   return (
     <AuthProvider>
-      <div className="flex min-h-screen flex-col bg-background text-foreground">
-        <SiteHeader />
-        <div className="flex flex-1">
-          <AppSidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <main className="flex-1">
-              <Outlet />
-            </main>
-            <SiteFooter />
-          </div>
+      <div className="flex min-h-screen bg-background text-foreground">
+        <AppSidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <MobileNav />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <SiteFooter />
         </div>
       </div>
     </AuthProvider>

@@ -10,6 +10,10 @@ import {
   Gavel,
   UserPlus,
   UserCog,
+  Store,
+  Lock,
+  ListChecks,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -28,9 +32,8 @@ export type NavSection = {
 };
 
 /**
- * Navegação principal: cada "seção" é uma aba do header (Hierarquia 1).
- * Os `items` de cada seção (Hierarquia 2) aparecem agrupados na sidebar,
- * todos visíveis o tempo todo.
+ * Navegação pública (leitura): aparece na sidebar para todos.
+ * A barra do topo (SiteHeader) foi aposentada — a sidebar é a navegação única.
  */
 export const navSections: NavSection[] = [
   {
@@ -69,12 +72,6 @@ export const navSections: NavSection[] = [
     label: "Times",
     items: [
       { to: "/elencos", label: "Elencos", icon: Users, desc: "Times e jogadores" },
-      {
-        to: "/escalacoes",
-        label: "Escalações",
-        icon: ClipboardList,
-        desc: "Quem joga essa rodada",
-      },
       { to: "/gms", label: "GMs", icon: UserCog, desc: "General Managers da liga" },
     ],
   },
@@ -100,7 +97,39 @@ export const navSections: NavSection[] = [
   },
 ];
 
-/** Encontra a seção dona da rota atual (default: primeira). */
+/**
+ * Gestão do GM (logado como gm ou admin).
+ * "Meu Elenco" é dinâmico (depende do slug do time logado) e é montado
+ * direto na sidebar, não aqui.
+ */
+export const gmItems: NavItem[] = [
+  { to: "/escalar", label: "Escalar", icon: ClipboardList, desc: "Montar sua escalação" },
+  { to: "/mercado", label: "Mercado", icon: Store, desc: "Dispensa, IR, trocas e leilão" },
+];
+
+/** Área de admin (logado como admin). */
+export const adminItems: NavItem[] = [
+  {
+    to: "/admin/fechar-semana",
+    label: "Travar semana / Foto",
+    icon: Lock,
+    desc: "Travar escalações e tirar a foto do elenco",
+  },
+  {
+    to: "/admin/consolidar-lock",
+    label: "Preencher escalações pendentes",
+    icon: ListChecks,
+    desc: "Completar quem não escalou",
+  },
+  {
+    to: "/admin/mercado",
+    label: "Mercado (admin)",
+    icon: Settings,
+    desc: "Fila, execução e consolidação",
+  },
+];
+
+/** Encontra a seção pública dona da rota atual (default: primeira). */
 export function getActiveSection(pathname: string): NavSection {
   for (const section of navSections) {
     if (section.items.some((i) => i.to === pathname)) return section;
