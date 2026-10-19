@@ -1,20 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PagePlaceholder } from "../components/PagePlaceholder";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Free Agents = leilão de free agents. Redireciona pra "/leilao" (a tela real).
 export const Route = createFileRoute("/free-agents")({
-  head: () => ({
-    meta: [
-      { title: "Free Agents — Liga Bola Presa de Fantasy" },
-      { name: "description", content: "Mercado de jogadores livres da Liga Bola Presa." },
-      { property: "og:title", content: "Free Agents — Liga Bola Presa" },
-      { property: "og:description", content: "Mercado de jogadores livres." },
-    ],
-  }),
-  component: () => (
-    <PagePlaceholder
-      eyebrow="Mercado"
-      title="Free Agents"
-      description="Lista de jogadores disponíveis no mercado e movimentações recentes."
-    />
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: "/leilao" });
+  },
 });

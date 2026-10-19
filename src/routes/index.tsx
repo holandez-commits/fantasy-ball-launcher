@@ -6,20 +6,17 @@ import {
   BarChart2, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  buildStandings,
+  StandingsTable,
+  type StandingsTeam,
+  type StandingsGame,
+  type StandingsRow,
+} from "@/components/standings-table";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Season = { id: string; label: string; start_year: number; is_current: boolean };
-
-type TeamRow = {
-  id: string;
-  name: string;
-  slug: string;
-  conference: string | null;
-  logo_url: string | null;
-  primary_color: string | null;
-  is_active: boolean;
-};
 
 type GameRow = {
   id: string;
@@ -32,11 +29,6 @@ type GameRow = {
 };
 
 type WeekEntry = { season_id: string; week_number: number };
-
-type StandingEntry = {
-  team: TeamRow;
-  w: number; d: number; l: number; gp: number; pct: number;
-};
 
 type TabId = "geral" | "donut" | "badboys";
 
@@ -71,50 +63,18 @@ function teamInitials(name: string): string {
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
 
-function pctStr(w: number, gp: number) {
-  if (gp === 0) return ".000";
-  return (w / gp).toFixed(3).replace(/^0/, "");
-}
+// ─── TeamLogo (compacto, usado nos cards de jogos) ─────────────────────────────
 
-function pctColor(pct: number): string {
-  if (pct >= 0.65) return "text-purple-600 dark:text-purple-400";
-  if (pct >= 0.5)  return "text-emerald-600 dark:text-emerald-400";
-  if (pct >= 0.35) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
-}
-
-function buildStandings(teams: TeamRow[], games: GameRow[]): StandingEntry[] {
-  const map = new Map<string, { w: number; d: number; l: number }>();
-  for (const t of teams) map.set(t.id, { w: 0, d: 0, l: 0 });
-
-  for (const g of games) {
-    if (g.home_score == null || g.away_score == null) continue;
-    const home = map.get(g.home_team_id);
-    const away = map.get(g.away_team_id);
-    if (g.home_score > g.away_score) { if (home) home.w++; if (away) away.l++; }
-    else if (g.away_score > g.home_score) { if (away) away.w++; if (home) home.l++; }
-    else { if (home) home.d++; if (away) away.d++; }
-  }
-
-  return teams.map((team) => {
-    const rec = map.get(team.id) ?? { w: 0, d: 0, l: 0 };
-    const gp = rec.w + rec.d + rec.l;
-    return { team, ...rec, gp, pct: gp > 0 ? rec.w / gp : 0 };
-  }).sort((a, b) => b.w - a.w || b.d - a.d || a.team.name.localeCompare(b.team.name));
-}
-
-// ─── TeamLogo ─────────────────────────────────────────────────────────────────
-
-function TeamLogo({ team }: { team: TeamRow }) {
-  const bg = team.primary_color ?? "#374151";
+function TeamLogo({ team }: { team: StandingsTeam | undefined }) {
+  const bg = team?.primary_color ?? "#374151";
   return (
     <div
       className="flex h-7 w-7 flex-none items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-white shrink-0"
       style={{ background: bg }}
     >
-      {team.logo_url
+      {team?.logo_url
         ? <img src={team.logo_url} alt={team.name} className="h-full w-full object-cover" />
-        : <span>{teamInitials(team.name)}</span>
+        : <span>{team ? teamInitials(team.name) : "—"}</span>
       }
     </div>
   );
@@ -171,55 +131,6 @@ function SimpleDropdown<T extends string | number>({
   );
 }
 
-// ─── StandingsMini ────────────────────────────────────────────────────────────
-
-function StandingsMini({ entries }: { entries: StandingEntry[] }) {
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <th className="px-3 py-2.5 w-7">#</th>
-            <th className="w-9 py-2.5 pl-2 pr-0" />
-            <th className="px-3 py-2.5 text-left">Time</th>
-            <th className="px-3 py-2.5 text-right">V</th>
-            <th className="px-3 py-2.5 text-right">E</th>
-            <th className="px-3 py-2.5 text-right">D</th>
-            <th className="px-3 py-2.5 text-right">PCT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e, i) => (
-            <tr key={e.team.id} className={cn(
-              "border-b border-border/60 last:border-0 hover:bg-muted/40 transition-colors",
-              i % 2 === 1 ? "bg-muted/10" : "",
-              !e.team.is_active ? "opacity-60" : ""
-            )}>
-              <td className="px-3 py-2 text-muted-foreground tabular-nums">{i + 1}</td>
-              <td className="py-2 pl-2 pr-0"><TeamLogo team={e.team} /></td>
-              <td className="px-3 py-2">
-                <Link
-                  to="/times/$slug"
-                  params={{ slug: e.team.slug }}
-                  className="font-medium hover:underline hover:text-[color:var(--court)]"
-                >
-                  {e.team.name}
-                </Link>
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums font-medium">{e.w}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{e.d}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{e.l}</td>
-              <td className={cn("px-3 py-2 text-right tabular-nums font-medium", pctColor(e.pct))}>
-                {pctStr(e.w, e.gp)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 // ─── GamesSection ─────────────────────────────────────────────────────────────
 
 function GamesSection({
@@ -231,7 +142,7 @@ function GamesSection({
 }: {
   seasons: Season[];
   weeksIndex: WeekEntry[];
-  teamMap: Map<string, TeamRow>;
+  teamMap: Map<string, StandingsTeam>;
   defaultSeasonId: string;
   defaultWeek: number | null;
 }) {
@@ -355,8 +266,9 @@ function GamesSection({
 
 function HomePage() {
   const [seasons, setSeasons]                 = useState<Season[]>([]);
-  const [teams, setTeams]                     = useState<TeamRow[]>([]);
-  const [currentSeasonGames, setCurrentSeasonGames] = useState<GameRow[]>([]);
+  const [teams, setTeams]                     = useState<StandingsTeam[]>([]);
+  const [currentSeasonGames, setCurrentSeasonGames] = useState<StandingsGame[]>([]);
+  const [standingsData, setStandingsData]     = useState<StandingsRow[]>([]);
   const [weeksIndex, setWeeksIndex]           = useState<WeekEntry[]>([]);
   const [currentSeasonId, setCurrentSeasonId] = useState<string | null>(null);
   const [defaultWeek, setDefaultWeek]         = useState<number | null>(null);
@@ -368,27 +280,31 @@ function HomePage() {
       // 1. Metadados: seasons + teams
       const [seasonsRes, teamsRes] = await Promise.all([
         supabase.from("seasons").select("id, label, start_year, is_current").order("start_year", { ascending: false }),
-        supabase.from("teams").select("id, name, slug, conference, logo_url, primary_color, is_active"),
+        supabase.from("teams").select("id, name, slug, conference, is_active, logo_url, primary_color, gm:gms(full_name)"),
       ]);
 
       const fetchedSeasons = (seasonsRes.data ?? []) as Season[];
       // Padrão: temporada corrente (mesmo sem jogos ainda).
       const current = fetchedSeasons.find((s) => s.is_current) ?? fetchedSeasons[0];
       setSeasons(fetchedSeasons);
-      setTeams((teamsRes.data as TeamRow[]) ?? []);
+      setTeams((teamsRes.data as unknown as StandingsTeam[]) ?? []);
       setCurrentSeasonId(current?.id ?? null);
 
       if (!current) { setLoading(false); return; }
 
-      // 2. Jogos da temporada atual (para classificação) — só 468 linhas
-      const { data: currentGamesData } = await supabase
-        .from("games")
-        .select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id")
-        .eq("season_id", current.id)
-        .eq("is_playoff", false)
-        .eq("status" as "id", "final");
+      // 2. Jogos finalizados da temporada atual + standings via RPC (para a tabela)
+      const [currentGamesRes, standingsRes] = await Promise.all([
+        supabase
+          .from("games")
+          .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week")
+          .eq("season_id", current.id)
+          .eq("is_playoff", false)
+          .eq("status" as "id", "final"),
+        supabase.rpc("get_standings", { season_ids: [current.id] }),
+      ]);
 
-      setCurrentSeasonGames((currentGamesData as GameRow[]) ?? []);
+      setCurrentSeasonGames((currentGamesRes.data as StandingsGame[]) ?? []);
+      setStandingsData((standingsRes.data as StandingsRow[]) ?? []);
 
       // 3. Índice de semanas via RPC (retorna só distintos, sem limite de rows)
       const { data: weeksData } = await supabase.rpc("get_weeks_index");
@@ -396,7 +312,7 @@ function HomePage() {
       const weeks = (weeksData ?? []) as WeekEntry[];
       setWeeksIndex(weeks);
 
-      // Default week: última semana da temporada atual
+      // Default week: primeira semana da temporada atual
       const currentWeeks = weeks
         .filter((w) => w.season_id === current.id)
         .map((w) => w.week_number)
@@ -409,14 +325,20 @@ function HomePage() {
   }, []);
 
   const teamMap = useMemo(() => {
-    const m = new Map<string, TeamRow>();
+    const m = new Map<string, StandingsTeam>();
     for (const t of teams) m.set(t.id, t);
     return m;
   }, [teams]);
 
-  const allStandings     = useMemo(() => buildStandings(teams, currentSeasonGames), [teams, currentSeasonGames]);
-  const donutStandings   = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Donut"), currentSeasonGames), [teams, currentSeasonGames]);
-  const badboysStandings = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Bad Boys"), currentSeasonGames), [teams, currentSeasonGames]);
+  const standingsMap = useMemo(() => {
+    const m = new Map<string, StandingsRow>();
+    for (const r of standingsData) m.set(r.team_id, r);
+    return m;
+  }, [standingsData]);
+
+  const allStandings     = useMemo(() => buildStandings(teams, currentSeasonGames, true, standingsMap), [teams, currentSeasonGames, standingsMap]);
+  const donutStandings   = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Donut"), currentSeasonGames, true, standingsMap), [teams, currentSeasonGames, standingsMap]);
+  const badboysStandings = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Bad Boys"), currentSeasonGames, true, standingsMap), [teams, currentSeasonGames, standingsMap]);
 
   const currentStandings =
     activeTab === "geral"   ? allStandings :
@@ -511,7 +433,11 @@ function HomePage() {
         {loading ? (
           <div className="h-48 rounded-lg bg-muted animate-pulse" />
         ) : (
-          <StandingsMini entries={currentStandings} />
+          <StandingsTable
+            entries={currentStandings}
+            showPlayoffCutoff={activeTab !== "geral"}
+            showStreakAndL5={true}
+          />
         )}
       </section>
 
