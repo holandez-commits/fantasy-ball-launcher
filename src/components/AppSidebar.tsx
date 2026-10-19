@@ -59,6 +59,8 @@ export function SidebarContent({
 }) {
   const { pathname } = useLocation();
   const { user, loading, isAdmin, isGm, teamSlug, signOut } = useAuth();
+  const showGestao = !loading && (isGm || isAdmin);
+  const showAdmin = !loading && isAdmin;
   const isActive = (to: string) =>
     pathname === to || (to !== "/" && pathname.startsWith(to + "/"));
 
@@ -94,23 +96,8 @@ export function SidebarContent({
       </Link>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3">
-        {navSections.map((section, idx) => (
-          <div key={section.id} className={cn(idx > 0 && "mt-4")}>
-            <SectionLabel label={section.label} />
-            {section.items.map((item) => (
-              <ItemLink
-                key={item.to}
-                item={item}
-                active={isActive(item.to)}
-                collapsed={collapsed}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </div>
-        ))}
-
-        {!loading && (isGm || isAdmin) && (
-          <div className="mt-4">
+        {showGestao && (
+          <div>
             <SectionLabel label="Gestão" />
             {teamSlug && (
               <Link
@@ -137,7 +124,22 @@ export function SidebarContent({
           </div>
         )}
 
-        {!loading && isAdmin && (
+        {navSections.map((section, idx) => (
+          <div key={section.id} className={cn((idx > 0 || showGestao) && "mt-4")}>
+            <SectionLabel label={section.label} />
+            {section.items.map((item) => (
+              <ItemLink
+                key={item.to}
+                item={item}
+                active={isActive(item.to)}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        ))}
+
+        {showAdmin && (
           <div className="mt-4">
             <SectionLabel label="Admin" />
             {adminItems.map((item) => (

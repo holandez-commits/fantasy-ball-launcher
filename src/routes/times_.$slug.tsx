@@ -219,8 +219,17 @@ function RosterTable({
   penaltiesByYear: Record<string, number>;
   picks: DraftPick[];
 }) {
-  const active  = entries.filter((e) => e.status !== "injured_reserve");
-  const injured = entries.filter((e) => e.status === "injured_reserve");
+  // Ordem fixa por posição (titular→pivô); posição desconhecida vai pro fim.
+  const POS_ORDER = ["PG", "PG/SG", "SG", "SG/SF", "SF", "SF/PF", "PF", "PF/C", "C"];
+  const posRank = (p: string | null) => {
+    const i = POS_ORDER.indexOf((p ?? "").trim());
+    return i === -1 ? POS_ORDER.length : i;
+  };
+  const byPos = (a: RosterEntry, b: RosterEntry) =>
+    posRank(a.position) - posRank(b.position) ||
+    (a.player?.full_name ?? "").localeCompare(b.player?.full_name ?? "");
+  const active  = entries.filter((e) => e.status !== "injured_reserve").sort(byPos);
+  const injured = entries.filter((e) => e.status === "injured_reserve").sort(byPos);
   const all     = [...active, ...injured];
 
   if (all.length === 0) {

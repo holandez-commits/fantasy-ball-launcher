@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
-import { pickDefaultStatsSeason } from "../lib/seasons";
 import {
   ArrowUpRight, Trophy, Users, CalendarDays, ClipboardList,
   BarChart2, ChevronDown,
@@ -26,8 +25,8 @@ type GameRow = {
   id: string;
   home_team_id: string;
   away_team_id: string;
-  home_score: number;
-  away_score: number;
+  home_score: number | null;
+  away_score: number | null;
   week_number: number | null;
   season_id: string;
 };
@@ -89,6 +88,7 @@ function buildStandings(teams: TeamRow[], games: GameRow[]): StandingEntry[] {
   for (const t of teams) map.set(t.id, { w: 0, d: 0, l: 0 });
 
   for (const g of games) {
+    if (g.home_score == null || g.away_score == null) continue;
     const home = map.get(g.home_team_id);
     const away = map.get(g.away_team_id);
     if (g.home_score > g.away_score) { if (home) home.w++; if (away) away.l++; }
@@ -250,10 +250,10 @@ function GamesSection({
     return weeks.map((w) => ({ value: w, label: `Semana ${w}` }));
   }, [weeksIndex, selectedSeasonId]);
 
-  // Quando muda de temporada, vai para a última semana dessa temporada
+  // Quando muda de temporada, vai para a primeira semana dessa temporada
   useEffect(() => {
     if (weekOptions.length > 0) {
-      setSelectedWeek(weekOptions[weekOptions.length - 1].value);
+      setSelectedWeek(weekOptions[0].value);
     }
   }, [selectedSeasonId]);
 
@@ -274,8 +274,12 @@ function GamesSection({
       });
   }, [selectedSeasonId, selectedWeek]);
 
-  const seasonOptions = seasons.map((s) => ({ value: s.id, label: `Temporada ${s.label}` }));
-  const activeWeek = selectedWeek ?? (weekOptions[weekOptions.length - 1]?.value ?? null);
+  // Não lista temporadas futuras (posteriores à corrente) no seletor.
+  const currentStart = seasons.find((s) => s.id === defaultSeasonId)?.start_year ?? Infinity;
+  const seasonOptions = seasons
+    .filter((s) => s.start_year <= currentStart)
+    .map((s) => ({ value: s.id, label: `Temporada ${s.label}` }));
+  const activeWeek = selectedWeek ?? (weekOptions[0]?.value ?? null);
 
   return (
     <div>
@@ -303,9 +307,10 @@ function GamesSection({
           {weekGames.map((g) => {
             const home = teamMap.get(g.home_team_id);
             const away = teamMap.get(g.away_team_id);
-            const homeWon = g.home_score > g.away_score;
-            const awayWon = g.away_score > g.home_score;
-            const tied   = g.home_score === g.away_score;
+            const hasScore = g.home_score != null && g.away_score != null;
+            const homeWon = hasScore && g.home_score! > g.away_score!;
+            const awayWon = hasScore && g.away_score! > g.home_score!;
+            const tied   = hasScore && g.home_score! === g.away_score!;
             return (
               <div key={g.id} className="rounded-lg border border-border bg-card p-3">
                 <div className={cn("flex items-center justify-between gap-2", awayWon && "opacity-50")}>
@@ -316,7 +321,7 @@ function GamesSection({
                     </span>
                   </div>
                   <span className={cn("text-sm tabular-nums font-bold shrink-0", homeWon && "text-[color:var(--court)]")}>
-                    {g.home_score}
+                    {hasScore ? g.home_score : ""}
                   </span>
                 </div>
                 <div className="my-1.5 border-t border-border/50" />
@@ -328,9 +333,12 @@ function GamesSection({
                     </span>
                   </div>
                   <span className={cn("text-sm tabular-nums font-bold shrink-0", awayWon && "text-[color:var(--court)]")}>
-                    {g.away_score}
+                    {hasScore ? g.away_score : ""}
                   </span>
                 </div>
+                {!hasScore && (
+                  <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-muted-foreground">A jogar</p>
+                )}
                 {tied && (
                   <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-amber-600">Empate</p>
                 )}
@@ -364,8 +372,8 @@ function HomePage() {
       ]);
 
       const fetchedSeasons = (seasonsRes.data ?? []) as Season[];
-      // Padrão: temporada mais recente que já tenha jogos finalizados
-      const current = await pickDefaultStatsSeason(fetchedSeasons);
+      // Padrão: temporada corrente (mesmo sem jogos ainda).
+      const current = fetchedSeasons.find((s) => s.is_current) ?? fetchedSeasons[0];
       setSeasons(fetchedSeasons);
       setTeams((teamsRes.data as TeamRow[]) ?? []);
       setCurrentSeasonId(current?.id ?? null);
@@ -377,7 +385,8 @@ function HomePage() {
         .from("games")
         .select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id")
         .eq("season_id", current.id)
-        .eq("is_playoff", false);
+        .eq("is_playoff", false)
+        .eq("status" as "id", "final");
 
       setCurrentSeasonGames((currentGamesData as GameRow[]) ?? []);
 
@@ -392,8 +401,8 @@ function HomePage() {
         .filter((w) => w.season_id === current.id)
         .map((w) => w.week_number)
         .sort((a, b) => a - b);
-      const lastWeek = currentWeeks[currentWeeks.length - 1] ?? null;
-      setDefaultWeek(lastWeek);
+      const firstWeek = currentWeeks[0] ?? null;
+      setDefaultWeek(firstWeek);
 
       setLoading(false);
     })();

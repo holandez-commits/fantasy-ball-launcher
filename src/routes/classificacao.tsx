@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
-import { pickDefaultStatsSeason } from "../lib/seasons";
 import { ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -182,6 +181,8 @@ function buildStandings(teams: TeamRow[], games: GameRow[], singleSeason: boolea
       };
     })
     .sort((a, b) => {
+      // Times extintos sempre no fim da tabela.
+      if (a.team.is_active !== b.team.is_active) return a.team.is_active ? -1 : 1;
       if (b.w !== a.w) return b.w - a.w;
       if (b.d !== a.d) return b.d - a.d;
       return a.team.name.localeCompare(b.team.name);
@@ -504,7 +505,8 @@ function ClassificacaoPage() {
       setSeasons(fetchedSeasons);
       setTeams((teamsRes.data as unknown as TeamRow[]) ?? []);
 
-      const defaultSeason = await pickDefaultStatsSeason(fetchedSeasons);
+      // Classificação abre sempre na temporada corrente (mesmo sem jogos ainda).
+      const defaultSeason = fetchedSeasons.find((s) => s.is_current) ?? fetchedSeasons[0];
 
       if (defaultSeason) setSelectedSeasons(new Set([defaultSeason.id]));
     })();
@@ -526,6 +528,7 @@ function ClassificacaoPage() {
           .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week")
           .in("season_id", ids)
           .eq("is_playoff", false)
+          .eq("status" as "id", "final")
       : Promise.resolve({ data: [], error: null });
 
     Promise.all([standingsPromise, gamesPromise]).then(([standingsRes, gamesRes]) => {
