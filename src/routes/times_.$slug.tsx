@@ -210,7 +210,15 @@ function SectionTitle({ title }: { title: string }) {
 
 // ─── Roster table ─────────────────────────────────────────────────────────────
 
-function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; penaltiesByYear: Record<string, number> }) {
+function RosterTable({
+  entries,
+  penaltiesByYear,
+  picks,
+}: {
+  entries: RosterEntry[];
+  penaltiesByYear: Record<string, number>;
+  picks: DraftPick[];
+}) {
   const active  = entries.filter((e) => e.status !== "injured_reserve");
   const injured = entries.filter((e) => e.status === "injured_reserve");
   const all     = [...active, ...injured];
@@ -235,15 +243,29 @@ function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; pen
   const capAvailable = CAP - (totals[currentYear] ?? 0) - (penaltiesByYear[currentYear] ?? 0);
   const hasPenalties = CONTRACT_YEARS.some((y) => (penaltiesByYear[y] ?? 0) > 0);
 
+  // Picks na coluna do ano do seu draft; picks de anos fora da tabela vão numa nota.
+  const picksByYear: Record<string, DraftPick[]> = {};
+  const overflowPicks: DraftPick[] = [];
+  for (const p of picks) {
+    const label = p.season?.label ?? "";
+    if (CONTRACT_YEARS.includes(label)) {
+      if (!picksByYear[label]) picksByYear[label] = [];
+      picksByYear[label].push(p);
+    } else {
+      overflowPicks.push(p);
+    }
+  }
+  const hasPicks = picks.length > 0;
+
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full text-sm">
+      <table className="w-full min-w-[760px] text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <th className="px-4 py-3 text-left">Jogador</th>
             <th className="px-4 py-3 text-left">Pos</th>
             {CONTRACT_YEARS.map((y) => (
-              <th key={y} className="px-3 py-3 text-right hidden sm:table-cell">{y}</th>
+              <th key={y} className="px-3 py-3 text-right">{y}</th>
             ))}
           </tr>
         </thead>
@@ -272,7 +294,7 @@ function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; pen
                 </td>
                 <td className="px-4 py-2.5 text-muted-foreground">{entry.position ?? "—"}</td>
                 {CONTRACT_YEARS.map((y) => (
-                  <td key={y} className="px-3 py-2.5 text-right tabular-nums text-muted-foreground hidden sm:table-cell">
+                  <td key={y} className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
                     {salaryMap[y] ? fmtSalary(salaryMap[y]) : "—"}
                   </td>
                 ))}
@@ -286,7 +308,7 @@ function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; pen
           <tr className="border-t-2 border-border bg-muted/20 font-semibold">
             <td className="px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground" colSpan={2}>Total elenco</td>
             {CONTRACT_YEARS.map((y) => (
-              <td key={y} className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">
+              <td key={y} className="px-3 py-2.5 text-right tabular-nums">
                 {totals[y] > 0 ? fmtSalary(totals[y]) : "—"}
               </td>
             ))}
@@ -295,7 +317,7 @@ function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; pen
             <tr className="border-t border-border/60 bg-muted/10 text-amber-600 dark:text-amber-400">
               <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={2}>Multas</td>
               {CONTRACT_YEARS.map((y) => (
-                <td key={y} className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">
+                <td key={y} className="px-3 py-2.5 text-right tabular-nums">
                   {fmtSalaryFull(penaltiesByYear[y] ?? 0)}
                 </td>
               ))}
@@ -313,66 +335,78 @@ function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; pen
               const yearPenalty = penaltiesByYear[y] ?? 0;
               const yearCap = CAP - yearSalary - yearPenalty;
               return (
-                <td key={y} className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">
+                <td key={y} className="px-3 py-2.5 text-right tabular-nums">
                   {yearSalary > 0 || yearPenalty > 0 || i === 0 ? fmtSalaryFull(yearCap) : "—"}
                 </td>
               );
             })}
           </tr>
+          {hasPicks && (
+            <tr className="border-t border-border/60 align-top">
+              <td className="px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground" colSpan={2}>
+                Draft
+              </td>
+              {CONTRACT_YEARS.map((y) => (
+                <td key={y} className="px-3 py-2.5 text-right">
+                  <div className="flex flex-col items-end gap-1">
+                    {(picksByYear[y] ?? []).map((p) => (
+                      <PickChip key={p.id} pick={p} />
+                    ))}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          )}
         </tfoot>
       </table>
+      {overflowPicks.length > 0 && (
+        <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
+          Outras picks:{" "}
+          {overflowPicks
+            .map(
+              (p) =>
+                `${p.round}ª ${p.season?.label ?? "?"}${
+                  p.original_team ? ` (${lastWord(p.original_team.name)})` : ""
+                }`,
+            )
+            .join(", ")}
+        </p>
+      )}
     </div>
   );
 }
 
 // ─── Draft picks ──────────────────────────────────────────────────────────────
 
-function DraftPicksList({ picks, teamId }: { picks: DraftPick[]; teamId: string }) {
-  if (picks.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nenhuma pick de draft.</p>;
-  }
+/** Última palavra do nome do time (ex. "Porto Alegre Ornitorrincos" -> "Ornitorrincos"). */
+function lastWord(name: string): string {
+  const w = name.trim().split(/\s+/);
+  return w[w.length - 1];
+}
 
-  // Agrupa por temporada do draft (picks já vêm ordenadas)
-  const groups: { label: string; picks: DraftPick[] }[] = [];
-  for (const p of picks) {
-    const label = p.season?.label ?? "—";
-    const last = groups[groups.length - 1];
-    if (last && last.label === label) last.picks.push(p);
-    else groups.push({ label, picks: [p] });
-  }
-
+/** Chip de uma pick: "<rodada>ª <time de origem>". 1ª rodada em destaque; disputa em âmbar. */
+function PickChip({ pick }: { pick: DraftPick }) {
+  const origin = pick.original_team?.name ? lastWord(pick.original_team.name) : "?";
+  const first = pick.round === 1;
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {groups.map((g) => (
-        <div key={g.label} className="rounded-lg border border-border bg-card">
-          <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Draft {g.label}
-          </div>
-          <ul className="divide-y divide-border/60">
-            {g.picks.map((p) => {
-              const traded = p.original_team_id !== teamId;
-              return (
-                <li key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2.5 text-sm">
-                  <span className="font-medium">
-                    {p.round}ª rodada{p.pick_number != null && ` · pick ${p.pick_number}`}
-                  </span>
-                  {traded && (
-                    <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      via troca{p.original_team ? ` · ${p.original_team.name}` : ""}
-                    </span>
-                  )}
-                  {p.disputed && (
-                    <span className="inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                      em disputa
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </div>
+    <span
+      title={
+        pick.original_team?.name
+          ? `${pick.round}ª rodada · ${pick.original_team.name}${pick.disputed ? " · em disputa" : ""}`
+          : `${pick.round}ª rodada`
+      }
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium",
+        pick.disputed
+          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+          : first
+            ? "bg-red-500/10 text-red-600 dark:text-red-400"
+            : "bg-muted text-muted-foreground",
+      )}
+    >
+      {pick.round}ª {origin}
+      {pick.disputed && <span className="text-[9px] uppercase tracking-wide">disp.</span>}
+    </span>
   );
 }
 
@@ -533,8 +567,8 @@ function AvgTable({ teamStats, allStats, teamId, conferenceTeamIds }: {
           <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <th className="px-4 py-3 text-left">Categoria</th>
             <th className="px-4 py-3 text-right">Média</th>
-            <th className="px-4 py-3 text-right hidden sm:table-cell">Liga</th>
-            <th className="px-4 py-3 text-right hidden sm:table-cell">Conf.</th>
+            <th className="px-4 py-3 text-right">Liga</th>
+            <th className="px-4 py-3 text-right">Conf.</th>
           </tr>
         </thead>
         <tbody>
@@ -552,10 +586,10 @@ function AvgTable({ teamStats, allStats, teamId, conferenceTeamIds }: {
                   <span className="mr-2">{cat.emoji}</span>{cat.label}
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums font-medium">{mean.toFixed(1)}</td>
-                <td className={cn("px-4 py-2.5 text-right tabular-nums hidden sm:table-cell font-medium", rankColor(rankLiga, totalLiga))}>
+                <td className={cn("px-4 py-2.5 text-right tabular-nums font-medium", rankColor(rankLiga, totalLiga))}>
                   {ordinal(rankLiga)} / {totalLiga}
                 </td>
-                <td className={cn("px-4 py-2.5 text-right tabular-nums hidden sm:table-cell font-medium", rankColor(rankConf, totalConf))}>
+                <td className={cn("px-4 py-2.5 text-right tabular-nums font-medium", rankColor(rankConf, totalConf))}>
                   {ordinal(rankConf)} / {totalConf}
                 </td>
               </tr>
@@ -848,13 +882,7 @@ function TimePage() {
         {/* 1. Elenco */}
         <section>
           <SectionTitle title={`Elenco ${season?.label ?? ""}`} />
-          <RosterTable entries={roster} penaltiesByYear={penaltiesByYear} />
-        </section>
-
-        {/* 1b. Picks de draft */}
-        <section>
-          <SectionTitle title="Picks de draft" />
-          <DraftPicksList picks={picks} teamId={team.id} />
+          <RosterTable entries={roster} penaltiesByYear={penaltiesByYear} picks={picks} />
         </section>
 
         {/* Seletor da temporada das estatísticas (elenco acima segue a temporada corrente) */}
