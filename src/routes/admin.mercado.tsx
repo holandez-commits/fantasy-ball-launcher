@@ -464,7 +464,17 @@ function AdminMercadoPage() {
     const { data, error } = await callRpc("consolidar_mercado_previa", { _week: leilaoWeek });
     setBusyId(null);
     if (error) setResult({ ok: false, message: error.message });
-    else setPrevCons(((data ?? []) as PreviaCons[]).map((r) => ({ fase: r.fase, detalhe: r.detalhe })));
+    else
+      setPrevCons(
+        ((data ?? []) as PreviaCons[]).map((r) => ({
+          fase: r.fase,
+          // Encurta uuids crus (ex. "tx 1a2b3c4d-...-...") pra "tx #1a2b3c4d".
+          detalhe: String(r.detalhe ?? "").replace(
+            /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+            (m) => "#" + m.slice(0, 8),
+          ),
+        })),
+      );
   }
 
   async function commitCons() {
@@ -744,11 +754,11 @@ function AdminMercadoPage() {
                     onClick={() => void commitLeilao()}
                     disabled={busyId === "commit-leilao"}
                   >
-                    {busyId === "commit-leilao" ? "..." : "Consolidar só o leilão"}
+                    {busyId === "commit-leilao" ? "..." : "Processar só o leilão"}
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  "Consolidar só o leilão" cria os signings mas NÃO processa a fila nem reabre o
+                  "Processar só o leilão" cria os signings mas NÃO processa a fila nem reabre o
                   mercado — no domingo, use a consolidação abaixo.
                 </p>
                 {prevLeilao &&
@@ -838,7 +848,7 @@ function AdminMercadoPage() {
                 onClick={() => void commitCons()}
                 disabled={busyId === "commit-cons"}
               >
-                {busyId === "commit-cons" ? "..." : "Consolidar domingo"}
+                {busyId === "commit-cons" ? "..." : "Consolidar o domingo (fila + leilão)"}
               </Button>
             </div>
             {prevCons &&

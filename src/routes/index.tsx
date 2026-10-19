@@ -60,7 +60,7 @@ const shortcuts = [
   { to: "/gms",        label: "GMs",        desc: "General Managers",         icon: Users },
   { to: "/medias",     label: "Médias",     desc: "Desempenho por categoria",  icon: BarChart2 },
   { to: "/recordes",   label: "Recordes",   desc: "Marcas históricas",         icon: Trophy },
-  { to: "/escalacoes", label: "Escalações", desc: "Quem joga essa semana",     icon: ClipboardList },
+  { to: "/escalar",    label: "Escalar",    desc: "Monte sua escalação",       icon: ClipboardList },
   { to: "/calendario", label: "Calendário", desc: "Próximas rodadas",          icon: CalendarDays },
 ] as const;
 

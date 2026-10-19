@@ -296,7 +296,7 @@ function RosterTable({ entries, penaltiesByYear }: { entries: RosterEntry[]; pen
               <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={2}>Multas</td>
               {CONTRACT_YEARS.map((y) => (
                 <td key={y} className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">
-                  {fmtSalary(penaltiesByYear[y] ?? 0)}
+                  {fmtSalaryFull(penaltiesByYear[y] ?? 0)}
                 </td>
               ))}
             </tr>
@@ -678,7 +678,8 @@ function TimePage() {
       const byYear: Record<string, number> = {};
       for (const p of (penaltyData as unknown as Penalty[]) ?? []) {
         const label = p.season?.label;
-        if (label && CONTRACT_YEARS.includes(label)) byYear[label] = (byYear[label] ?? 0) + p.amount;
+        if (label && CONTRACT_YEARS.includes(label) && p.amount > 0)
+          byYear[label] = (byYear[label] ?? 0) + p.amount;
       }
       setPenaltiesByYear(byYear);
 

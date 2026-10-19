@@ -475,15 +475,8 @@ function EscalarPage() {
 
       {editable && (
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button onClick={() => void save("existentes")} disabled={saving || gameIds.length === 0}>
-            {saving ? "Salvando..." : "Salvar"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => void save("todos")}
-            disabled={saving || gameIds.length === 0}
-          >
-            Aplicar pra semana toda
+          <Button onClick={() => void save("todos")} disabled={saving || gameIds.length === 0}>
+            {saving ? "Salvando..." : "Salvar escalação"}
           </Button>
         </div>
       )}

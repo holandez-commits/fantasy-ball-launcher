@@ -25,7 +25,7 @@ import {
 export const Route = createFileRoute("/admin/consolidar-lock")({
   head: () => ({
     meta: [
-      { title: "Consolidar escalações — Admin — Liga Bola Presa" },
+      { title: "Preencher escalações pendentes — Admin — Liga Bola Presa" },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -126,7 +126,7 @@ function ConsolidarLockPage() {
     if (error) {
       setResult({ ok: false, message: friendlyError(error.message) });
     } else {
-      setResult({ ok: true, message: typeof data === "string" ? data : "Escalações consolidadas." });
+      setResult({ ok: true, message: typeof data === "string" ? data : "Escalações preenchidas." });
     }
   }
 
@@ -145,10 +145,10 @@ function ConsolidarLockPage() {
   return (
     <div className="mx-auto max-w-xl px-4 py-12">
       <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Admin</p>
-      <h1 className="mt-1 font-display text-3xl">Consolidar escalações</h1>
+      <h1 className="mt-1 font-display text-3xl">Preencher escalações pendentes</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Depois do prazo, copia a última escalação de cada time que não escalou a semana. Só funciona
-        depois que o prazo da semana vence; jogadores fora do retrato viram buracos.
+        Depois do prazo, preenche quem não escalou copiando a última escalação de cada time. Só
+        funciona depois que o prazo da semana vence; jogadores fora do retrato viram buracos.
       </p>
 
       {loadError && (
@@ -231,13 +231,13 @@ function ConsolidarLockPage() {
         )}
 
         <Button type="submit" disabled={!canSubmit}>
-          Consolidar escalações
+          Preencher escalações pendentes
         </Button>
       </form>
 
       {result && (
         <Alert variant={result.ok ? "default" : "destructive"} className="mt-6">
-          <AlertTitle>{result.ok ? "Escalações consolidadas" : "Não foi possível consolidar"}</AlertTitle>
+          <AlertTitle>{result.ok ? "Escalações preenchidas" : "Não foi possível preencher"}</AlertTitle>
           <AlertDescription>{result.message}</AlertDescription>
         </Alert>
       )}
@@ -245,7 +245,7 @@ function ConsolidarLockPage() {
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !submitting && setConfirmOpen(o)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar consolidação</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar preenchimento</AlertDialogTitle>
             <AlertDialogDescription>
               Isso vai criar escalações por cópia pra todos os times que não escalaram na semana{" "}
               {lock?.week_number} da {season?.label}, usando a última escalação de cada um. Ação com
@@ -255,7 +255,7 @@ function ConsolidarLockPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <Button onClick={confirm} disabled={submitting}>
-              {submitting ? "Consolidando..." : "Confirmar e consolidar"}
+              {submitting ? "Preenchendo..." : "Confirmar e preencher"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
