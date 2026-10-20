@@ -23,6 +23,7 @@ A pasta irmã `../referencia/` guarda rascunhos de modelagem (NÃO rodados, NÃO
 | `20261019_troca_mensagens_nome_time.sql` | 19/out/2026 (MCP) | `propor_troca`/`executar_troca`: nome do time (não UUID) nas mensagens de erro de cap/vaga. |
 | `20261019_admin_impersonation.sql` | 19/out/2026 (MCP) | **TEMPORÁRIO (testes):** admins "agem como" qualquer time. Tabela `admin_impersonation` + RPCs `impersonate_team`/`stop_impersonating`/`current_impersonation`; `current_team_id`/`current_gm_id` viram impersonation-aware. Frontend: seletor na sidebar + banner. **Bloco de reversão no fim do arquivo.** |
 | `20261019_get_movimentacoes.sql` | 19/out/2026 (MCP) | RPC pública (SECURITY DEFINER) `get_movimentacoes(season, limit)` pro feed da tela `/movimentacoes`: movimentações `executed` (dispensa/troca/IR/contratação) denormalizadas, datadas por `executed_at`. |
+| `20261019_fa_position_autofill.sql` | 19/out/2026 (SQL Editor) | `leilao_commit`: o FA contratado herda a última posição conhecida do jogador (antes nascia com posição NULL sempre). O painel "Contratações sem posição" (set_signing_position) segue cobrindo os sem histórico. **Rodado no SQL Editor** (tem `drop table` de temp table → MCP bloqueia). |
 
 > **Nota:** o DDL/seed de **auth + escalação** (Set/2026) foi aplicado direto no banco e o
 > SQL original se perdeu — não está aqui. Se um dia precisar do baseline completo do schema,

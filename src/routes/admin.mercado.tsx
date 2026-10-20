@@ -63,7 +63,7 @@ type IrRow = {
 };
 
 type SigningRow = { entryId: string; name: string; teamName: string | null };
-type PreviaLeilao = { playerName: string; teamName: string; salary: number };
+type PreviaLeilao = { playerName: string; teamName: string; salary: number; position: string | null };
 type PreviaCons = { fase: string; detalhe: string };
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -407,14 +407,44 @@ function AdminMercadoPage() {
       _season_id: season.id,
       _week: leilaoWeek,
     });
+    if (error) {
+      setBusyId(null);
+      setResult({ ok: false, message: error.message });
+      return;
+    }
+    const rows = (data ?? []) as {
+      player_id: string;
+      player_name: string;
+      team_name: string;
+      salary_offer: number;
+    }[];
+    // posição = última conhecida do jogador (mesma lógica do auto-preenchimento do signing)
+    const ids = [...new Set(rows.map((r) => r.player_id))];
+    const posByPlayer: Record<string, string> = {};
+    if (ids.length > 0) {
+      const posRes = await db
+        .from("roster_entries")
+        .select("player_id, position, season")
+        .in("player_id", ids)
+        .not("position", "is", null)
+        .order("season", { ascending: false });
+      for (const e of (posRes.data ?? []) as {
+        player_id: string;
+        position: string | null;
+        season: number;
+      }[]) {
+        if (e.position && !(e.player_id in posByPlayer)) posByPlayer[e.player_id] = e.position;
+      }
+    }
     setBusyId(null);
-    if (error) setResult({ ok: false, message: error.message });
-    else
-      setPrevLeilao(
-        ((data ?? []) as { player_name: string; team_name: string; salary_offer: number }[]).map(
-          (r) => ({ playerName: r.player_name, teamName: r.team_name, salary: r.salary_offer }),
-        ),
-      );
+    setPrevLeilao(
+      rows.map((r) => ({
+        playerName: r.player_name,
+        teamName: r.team_name,
+        salary: r.salary_offer,
+        position: posByPlayer[r.player_id] ?? null,
+      })),
+    );
   }
 
   async function commitLeilao() {
@@ -769,7 +799,13 @@ function AdminMercadoPage() {
                       {prevLeilao.map((r, i) => (
                         <li key={i} className="flex justify-between">
                           <span>
-                            {r.playerName} → <span className="font-medium">{r.teamName}</span>
+                            {r.playerName}
+                            {r.position ? (
+                              <span className="text-muted-foreground"> ({r.position})</span>
+                            ) : (
+                              ""
+                            )}{" "}
+                            → <span className="font-medium">{r.teamName}</span>
                           </span>
                           <span className="tabular-nums">{fmtMoney(r.salary)}</span>
                         </li>
