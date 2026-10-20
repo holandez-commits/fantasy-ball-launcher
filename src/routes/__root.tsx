@@ -2,6 +2,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import { AppSidebar } from "../components/AppSidebar";
 import { MobileNav } from "../components/MobileNav";
 import { SiteFooter } from "../components/SiteFooter";
+import { ImpersonationBanner } from "../components/ImpersonationSwitcher";
 import { AuthProvider } from "@/lib/auth";
 
 import appCss from "../styles.css?url";
@@ -84,6 +85,7 @@ function RootComponent() {
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <MobileNav />
+          <ImpersonationBanner />
           <main className="flex-1">
             <Outlet />
           </main>

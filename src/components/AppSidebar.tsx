@@ -4,6 +4,7 @@ import { ChevronLeft, Shield, LogOut, LogIn } from "lucide-react";
 import { navSections, gmItems, adminItems, type NavItem } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { ImpersonationSwitcher } from "@/components/ImpersonationSwitcher";
 
 function itemClass(active: boolean, collapsed: boolean) {
   return cn(
@@ -96,6 +97,9 @@ export function SidebarContent({
       </Link>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3">
+        {/* TEMPORÁRIO (testes finais): seletor de impersonação, só admin */}
+        <ImpersonationSwitcher collapsed={collapsed} />
+
         {showGestao && (
           <div>
             <SectionLabel label="Gestão" />

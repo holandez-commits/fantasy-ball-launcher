@@ -21,6 +21,7 @@ A pasta irmã `../referencia/` guarda rascunhos de modelagem (NÃO rodados, NÃO
 | `20261019_transactions_accept_deadline.sql` | 19/out/2026 (MCP) | `ALTER TABLE transactions ADD COLUMN accept_deadline` — ficou de fora na promoção do motor; `propor_troca` falhava sem ela. |
 | `20261019_reconciliacao_ir_planilha.sql` | 19/out/2026 (MCP) | Marca 7 jogadores como `injured_reserve` (ir_since_season=2026). Na planilha o IR é **cor de fonte vermelha**, que o importador não captura → entraram como `active` e estouravam as 15 vagas. |
 | `20261019_troca_mensagens_nome_time.sql` | 19/out/2026 (MCP) | `propor_troca`/`executar_troca`: nome do time (não UUID) nas mensagens de erro de cap/vaga. |
+| `20261019_admin_impersonation.sql` | 19/out/2026 (MCP) | **TEMPORÁRIO (testes):** admins "agem como" qualquer time. Tabela `admin_impersonation` + RPCs `impersonate_team`/`stop_impersonating`/`current_impersonation`; `current_team_id`/`current_gm_id` viram impersonation-aware. Frontend: seletor na sidebar + banner. **Bloco de reversão no fim do arquivo.** |
 
 > **Nota:** o DDL/seed de **auth + escalação** (Set/2026) foi aplicado direto no banco e o
 > SQL original se perdeu — não está aqui. Se um dia precisar do baseline completo do schema,
