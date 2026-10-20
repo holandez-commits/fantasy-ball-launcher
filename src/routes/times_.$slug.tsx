@@ -25,7 +25,7 @@ type RosterEntry = {
   id: string;
   position: string | null;
   status: string;
-  player: { full_name: string } | null;
+  player: { full_name: string; espn_id: string | null } | null;
   contract_years: { season_label: string; salary: number }[];
 };
 
@@ -294,9 +294,21 @@ function RosterTable({
                 )}
               >
                 <td className="px-4 py-2.5">
-                  <span className={cn("font-medium", isInjured && "line-through")}>
-                    {entry.player?.full_name ?? "—"}
-                  </span>
+                  {entry.player?.espn_id ? (
+                    <a
+                      href={`https://www.espn.com.br/nba/jogador/_/id/${entry.player.espn_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ver na ESPN"
+                      className={cn("font-medium hover:text-[color:var(--court)] hover:underline", isInjured && "line-through")}
+                    >
+                      {entry.player.full_name}
+                    </a>
+                  ) : (
+                    <span className={cn("font-medium", isInjured && "line-through")}>
+                      {entry.player?.full_name ?? "—"}
+                    </span>
+                  )}
                   {isInjured && (
                     <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-600">IR</span>
                   )}
@@ -688,7 +700,7 @@ function TimePage() {
       // 4. Elenco
       const { data: rosterData } = await supabase
         .from("roster_entries")
-        .select("id, position, status, player:players(full_name)")
+        .select("id, position, status, player:players(full_name, espn_id)")
         .eq("team_id", t.id)
         .eq("season", currentSeason.start_year)
         .order("status");

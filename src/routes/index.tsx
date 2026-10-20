@@ -26,6 +26,7 @@ type GameRow = {
   away_score: number | null;
   week_number: number | null;
   season_id: string;
+  external_url: string | null;
 };
 
 type WeekEntry = { season_id: string; week_number: number };
@@ -175,12 +176,12 @@ function GamesSection({
     setLoadingGames(true);
     supabase
       .from("games")
-      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id")
+      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id, external_url")
       .eq("season_id", selectedSeasonId)
       .eq("week_number", selectedWeek)
       .eq("is_playoff", false)
       .then(({ data }) => {
-        setWeekGames((data as GameRow[]) ?? []);
+        setWeekGames((data as unknown as GameRow[]) ?? []);
         setLoadingGames(false);
       });
   }, [selectedSeasonId, selectedWeek]);
@@ -222,8 +223,8 @@ function GamesSection({
             const homeWon = hasScore && g.home_score! > g.away_score!;
             const awayWon = hasScore && g.away_score! > g.home_score!;
             const tied   = hasScore && g.home_score! === g.away_score!;
-            return (
-              <div key={g.id} className="rounded-lg border border-border bg-card p-3">
+            const inner = (
+              <>
                 <div className={cn("flex items-center justify-between gap-2", awayWon && "opacity-50")}>
                   <div className="flex items-center gap-2 min-w-0">
                     {home && <TeamLogo team={home} />}
@@ -253,6 +254,22 @@ function GamesSection({
                 {tied && (
                   <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-amber-600">Empate</p>
                 )}
+              </>
+            );
+            return g.external_url ? (
+              <a
+                key={g.id}
+                href={g.external_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir planilha do confronto"
+                className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-[color:var(--court)] hover:bg-accent"
+              >
+                {inner}
+              </a>
+            ) : (
+              <div key={g.id} className="rounded-lg border border-border bg-card p-3">
+                {inner}
               </div>
             );
           })}
