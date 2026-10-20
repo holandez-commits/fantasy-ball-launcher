@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
-import { supabase } from "../integrations/supabase/client";
+import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "../integrations/supabase/types";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -24,6 +26,79 @@ type Season = {
 
 type TabId = "geral" | "donut" | "badboys";
 
+type StandingsPayload = { standings: StandingsRow[]; games: StandingsGame[] };
+
+// ─── Camada de dados no SERVIDOR (Worker) ──────────────────────────────────────
+// Antes cada tela batia no Supabase direto do navegador (Brasil -> Oregon,
+// ~700ms por chamada, em cascata). Agora o Worker faz esse salto servidor-a-
+// servidor e em paralelo; o browser só fala com o edge (perto do usuário).
+
+// Cliente só-servidor. Prefere a service role (pula RLS, mais rápido) e cai na
+// publishable se a service role não estiver no env do Worker. Usado apenas dentro
+// dos handlers de createServerFn, então o bundler o remove do pacote do cliente.
+function serverClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) throw new Error("Supabase server env ausente (SUPABASE_URL / KEY).");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return createClient<Database>(url, key, {
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+  }) as any;
+}
+
+// standings (via RPC) + jogos (só quando 1 temporada, pra Seq/L5), em paralelo.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadStandings(sb: any, ids: string[]): Promise<StandingsPayload> {
+  if (!ids || ids.length === 0) return { standings: [], games: [] };
+  const standingsPromise = sb.rpc("get_standings", { season_ids: ids });
+  const gamesPromise =
+    ids.length === 1
+      ? sb
+          .from("games")
+          .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week")
+          .in("season_id", ids)
+          .eq("is_playoff", false)
+          .eq("status", "final")
+      : Promise.resolve({ data: [], error: null });
+  const [s, g] = await Promise.all([standingsPromise, gamesPromise]);
+  return {
+    standings: (s.data as StandingsRow[]) ?? [],
+    games: (g.data as StandingsGame[]) ?? [],
+  };
+}
+
+// Carga inicial: seasons + teams + standings da temporada corrente, tudo numa ida.
+const fetchClassInitial = createServerFn({ method: "GET" }).handler(async () => {
+  const sb = serverClient();
+  const [seasonsRes, teamsRes] = await Promise.all([
+    sb
+      .from("seasons")
+      .select("id, label, start_year, end_year, is_current, is_completed")
+      .order("start_year", { ascending: false }),
+    sb
+      .from("teams")
+      .select("id, name, slug, conference, is_active, logo_url, primary_color, gm:gms(full_name)"),
+  ]);
+
+  const seasons = (seasonsRes.data as Season[]) ?? [];
+  const teams = (teamsRes.data as unknown as StandingsTeam[]) ?? [];
+  const def = seasons.find((s) => s.is_current) ?? seasons[0];
+  const defaultSeasonId = def?.id ?? null;
+
+  const { standings, games } = defaultSeasonId
+    ? await loadStandings(sb, [defaultSeasonId])
+    : { standings: [], games: [] };
+
+  return { seasons, teams, defaultSeasonId, standings, games };
+});
+
+// Troca de temporada no cliente: 1 chamada ao edge, queries paralelas no servidor.
+const fetchClassStandings = createServerFn({ method: "GET" })
+  .inputValidator((ids: string[]) => ids)
+  .handler(async ({ data }): Promise<StandingsPayload> => {
+    return loadStandings(serverClient(), data);
+  });
+
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute("/classificacao")({
@@ -33,6 +108,9 @@ export const Route = createFileRoute("/classificacao")({
       { name: "description", content: "Classificação da Liga Bola Presa." },
     ],
   }),
+  // Cache leve: classificação muda pouco (jogos fecham ~1x/semana).
+  staleTime: 30_000,
+  loader: async () => fetchClassInitial(),
   component: ClassificacaoPage,
 });
 
@@ -166,49 +244,29 @@ function SeasonSelector({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 function ClassificacaoPage() {
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  const [selectedSeasons, setSelectedSeasons] = useState<Set<string>>(new Set());
-  const [teams, setTeams] = useState<StandingsTeam[]>([]);
-  const [games, setGames] = useState<StandingsGame[]>([]);
-  const [standingsData, setStandingsData] = useState<StandingsRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const initial = Route.useLoaderData();
+
+  const seasons = initial.seasons as Season[];
+  const teams = (initial.teams as unknown as StandingsTeam[]) ?? [];
+
+  const [selectedSeasons, setSelectedSeasons] = useState<Set<string>>(
+    () => new Set(initial.defaultSeasonId ? [initial.defaultSeasonId] : []),
+  );
+  const [standingsData, setStandingsData] = useState<StandingsRow[]>(initial.standings ?? []);
+  const [games, setGames] = useState<StandingsGame[]>(initial.games ?? []);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("geral");
 
+  // A carga inicial já veio do loader (SSR). O 1º disparo do efeito é ignorado;
+  // daí em diante, trocar de temporada busca via server function (1 ida ao edge).
+  const skipFirst = useRef(true);
   useEffect(() => {
-    (async () => {
-      const [seasonsRes, teamsRes] = await Promise.all([
-        supabase
-          .from("seasons")
-          .select("id, label, start_year, end_year, is_current, is_completed")
-          .order("start_year", { ascending: false }),
-        supabase
-          .from("teams")
-          .select("id, name, slug, conference, is_active, logo_url, primary_color, gm:gms(full_name)"),
-      ]);
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      return;
+    }
 
-      if (seasonsRes.error) {
-        setError(seasonsRes.error.message);
-        setLoading(false);
-        return;
-      }
-      if (teamsRes.error) {
-        setError(teamsRes.error.message);
-        setLoading(false);
-        return;
-      }
-
-      const fetchedSeasons = (seasonsRes.data ?? []) as Season[];
-      setSeasons(fetchedSeasons);
-      setTeams((teamsRes.data as unknown as StandingsTeam[]) ?? []);
-
-      // Classificação abre sempre na temporada corrente (mesmo sem jogos ainda).
-      const defaultSeason = fetchedSeasons.find((s) => s.is_current) ?? fetchedSeasons[0];
-      if (defaultSeason) setSelectedSeasons(new Set([defaultSeason.id]));
-    })();
-  }, []);
-
-  useEffect(() => {
     if (selectedSeasons.size === 0) {
       setGames([]);
       setStandingsData([]);
@@ -217,31 +275,17 @@ function ClassificacaoPage() {
     }
 
     setLoading(true);
+    setError(null);
     const ids = Array.from(selectedSeasons);
-
-    // Sempre busca standings via RPC (sem limite de rows)
-    const standingsPromise = supabase.rpc("get_standings", { season_ids: ids });
-
-    // Busca jogos completos só quando uma temporada selecionada (para streak/L5)
-    const gamesPromise =
-      selectedSeasons.size === 1
-        ? supabase
-            .from("games")
-            .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week")
-            .in("season_id", ids)
-            .eq("is_playoff", false)
-            .eq("status" as "id", "final")
-        : Promise.resolve({ data: [], error: null });
-
-    Promise.all([standingsPromise, gamesPromise]).then(([standingsRes, gamesRes]) => {
-      if (standingsRes.error) setError(standingsRes.error.message);
-      else setStandingsData((standingsRes.data as StandingsRow[]) ?? []);
-      if (!gamesRes.error) setGames((gamesRes.data as StandingsGame[]) ?? []);
-      setLoading(false);
-    });
+    fetchClassStandings({ data: ids })
+      .then((res: StandingsPayload) => {
+        setStandingsData(res.standings ?? []);
+        setGames(res.games ?? []);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
   }, [selectedSeasons]);
 
-  // Streak e L5 só fazem sentido com uma única temporada selecionada
   const singleSeason = selectedSeasons.size === 1;
 
   const standingsMap = useMemo(() => {
