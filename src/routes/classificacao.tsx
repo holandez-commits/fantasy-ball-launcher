@@ -37,9 +37,20 @@ type StandingsPayload = { standings: StandingsRow[]; games: StandingsGame[] };
 // publishable se a service role não estiver no env do Worker. Usado apenas dentro
 // dos handlers de createServerFn, então o bundler o remove do pacote do cliente.
 function serverClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new Error("Supabase server env ausente (SUPABASE_URL / KEY).");
+  // As VITE_* são inlinadas no build e existem no bundle do Worker (é o que o
+  // client.ts do browser usa). process.env só funciona em alguns ambientes de
+  // servidor; por isso as VITE_* vêm primeiro.
+  // URL e publishable key são PÚBLICAS (já vão no bundle do browser). O fallback
+  // fixo garante o server fn mesmo se o env não chegar no bundle do Worker.
+  const url =
+    import.meta.env.VITE_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    "https://wfmvjzwkffetqaqbvlib.supabase.co";
+  const key =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    "sb_publishable_6mp-_0lhBQnaE_VddFyerA_gBIxN5bH";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createClient<Database>(url, key, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
