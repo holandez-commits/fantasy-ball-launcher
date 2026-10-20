@@ -11,6 +11,7 @@ import {
   TX_TYPE_LABEL,
   TX_STATUS_LABEL,
   statusTone,
+  groupTradeByDirection,
   type CurrentSeason,
   type ContractYear,
 } from "@/lib/market";
@@ -178,11 +179,18 @@ function MercadoPage() {
       ),
     );
 
-    const views: TradeView[] = trs.map((t) => {
+    const views: TradeView[] = trs.flatMap((t) => {
       const myItems = items.filter((i) => i.transaction_id === t.id);
       const myApprovals = approvals.filter((a) => a.transaction_id === t.id);
+      // Só mostra trocas que envolvem o MEU time (admin vê tudo pelo RLS; aqui
+      // é a tela do GM, então filtramos). A visão geral fica em /admin/mercado.
+      const teamsEnvolvidos = new Set<string>([
+        ...myApprovals.map((a) => a.team_id),
+        ...(myItems.flatMap((i) => [i.from_team_id, i.to_team_id]).filter(Boolean) as string[]),
+      ]);
+      if (!teamsEnvolvidos.has(teamId)) return [];
       const mine = myApprovals.find((a) => a.team_id === teamId);
-      return {
+      return [{
         id: t.id,
         status: t.status,
         isProposer: !!gmId && t.proposed_by === gmId,
@@ -205,7 +213,7 @@ function MercadoPage() {
           fromName: i.from_team_id ? teamName[i.from_team_id] ?? "—" : "—",
           toName: i.to_team_id ? teamName[i.to_team_id] ?? "—" : "—",
         })),
-      };
+      }];
     });
     setTrades(views);
   }, [teamId, gmId]);
@@ -493,16 +501,22 @@ function MercadoPage() {
                           </span>
                         )}
                       </div>
-                      <ul className="space-y-0.5 text-sm">
-                        {t.items.map((it, i) => (
-                          <li key={i} className="flex flex-wrap items-center gap-x-2">
-                            <span className="font-medium">{it.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {it.fromName} → {it.toName}
-                            </span>
-                          </li>
+                      <div className="space-y-2 text-sm">
+                        {groupTradeByDirection(t.items).map((g, gi) => (
+                          <div key={gi}>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              {g.from} envia para {g.to}
+                            </div>
+                            <ul className="mt-0.5 space-y-0.5 pl-3">
+                              {g.labels.map((l, li) => (
+                                <li key={li} className="font-medium">
+                                  {l}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-xs text-muted-foreground">
                           {t.status === "accepted"

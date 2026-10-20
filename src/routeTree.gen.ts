@@ -13,6 +13,7 @@ import { Route as TrocarRouteImport } from './routes/trocar'
 import { Route as RegrasRouteImport } from './routes/regras'
 import { Route as RecordesRouteImport } from './routes/recordes'
 import { Route as NoticiasRouteImport } from './routes/noticias'
+import { Route as MovimentacoesRouteImport } from './routes/movimentacoes'
 import { Route as MercadoRouteImport } from './routes/mercado'
 import { Route as MediasRouteImport } from './routes/medias'
 import { Route as LoginRouteImport } from './routes/login'
@@ -49,6 +50,11 @@ const RecordesRoute = RecordesRouteImport.update({
 const NoticiasRoute = NoticiasRouteImport.update({
   id: '/noticias',
   path: '/noticias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MovimentacoesRoute = MovimentacoesRouteImport.update({
+  id: '/movimentacoes',
+  path: '/movimentacoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MercadoRoute = MercadoRouteImport.update({
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
+  '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
+  '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
@@ -198,6 +206,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
+  '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
   '/regras': typeof RegrasRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/medias'
     | '/mercado'
+    | '/movimentacoes'
     | '/noticias'
     | '/recordes'
     | '/regras'
@@ -246,6 +256,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/medias'
     | '/mercado'
+    | '/movimentacoes'
     | '/noticias'
     | '/recordes'
     | '/regras'
@@ -269,6 +280,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/medias'
     | '/mercado'
+    | '/movimentacoes'
     | '/noticias'
     | '/recordes'
     | '/regras'
@@ -293,6 +305,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MediasRoute: typeof MediasRoute
   MercadoRoute: typeof MercadoRoute
+  MovimentacoesRoute: typeof MovimentacoesRoute
   NoticiasRoute: typeof NoticiasRoute
   RecordesRoute: typeof RecordesRoute
   RegrasRoute: typeof RegrasRoute
@@ -338,6 +351,13 @@ declare module '@tanstack/react-router' {
       path: '/mercado'
       fullPath: '/mercado'
       preLoaderRoute: typeof MercadoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movimentacoes': {
+      id: '/movimentacoes'
+      path: '/movimentacoes'
+      fullPath: '/movimentacoes'
+      preLoaderRoute: typeof MovimentacoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/medias': {
@@ -469,6 +489,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MediasRoute: MediasRoute,
   MercadoRoute: MercadoRoute,
+  MovimentacoesRoute: MovimentacoesRoute,
   NoticiasRoute: NoticiasRoute,
   RecordesRoute: RecordesRoute,
   RegrasRoute: RegrasRoute,

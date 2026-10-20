@@ -14,6 +14,7 @@ import {
   Lock,
   ListChecks,
   Settings,
+  ArrowLeftRight,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,18 +54,18 @@ export const navSections: NavSection[] = [
         desc: "Jogos e rodadas",
       },
       {
+        to: "/movimentacoes",
+        label: "Movimentações",
+        icon: ArrowLeftRight,
+        desc: "Dispensas, trocas, contratações e IR",
+      },
+      {
         to: "/regras",
         label: "Livro de Regras",
         icon: BookText,
         desc: "Como funciona a liga",
       },
       { to: "/draft", label: "Draft", icon: Gavel, desc: "Draft da temporada" },
-      {
-        to: "/free-agents",
-        label: "Free Agents",
-        icon: UserPlus,
-        desc: "Mercado de jogadores livres",
-      },
     ],
   },
   {
@@ -105,6 +106,7 @@ export const navSections: NavSection[] = [
 export const gmItems: NavItem[] = [
   { to: "/escalar", label: "Escalar", icon: ClipboardList, desc: "Montar sua escalação" },
   { to: "/mercado", label: "Mercado", icon: Store, desc: "Dispensa, IR, trocas e leilão" },
+  { to: "/leilao", label: "Free Agents", icon: UserPlus, desc: "Leilão de jogadores livres" },
 ];
 
 /** Área de admin (logado como admin). */

@@ -124,6 +124,37 @@ export function statusTone(status: string): string {
   }
 }
 
+// ─── Trocas: agrupar por direção (quem envia pra quem) ───────────────────────
+
+export type TradeAsset = { label: string; fromName: string; toName: string };
+
+/** Agrupa os ativos de uma troca em blocos "X envia para Y". Preserva a ordem. */
+export function groupTradeByDirection(
+  items: TradeAsset[],
+): { from: string; to: string; labels: string[] }[] {
+  const groups: { from: string; to: string; labels: string[] }[] = [];
+  for (const it of items) {
+    let g = groups.find((x) => x.from === it.fromName && x.to === it.toName);
+    if (!g) {
+      g = { from: it.fromName, to: it.toName, labels: [] };
+      groups.push(g);
+    }
+    g.labels.push(it.label);
+  }
+  return groups;
+}
+
+/** Data + hora curtas pt-BR (ex. "19/10 21:30"). */
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 // ─── Temporada corrente + estado do mercado ──────────────────────────────────
 
 export type CurrentSeason = { id: string; start_year: number; label: string };
