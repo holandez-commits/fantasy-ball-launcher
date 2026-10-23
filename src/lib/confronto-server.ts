@@ -119,6 +119,54 @@ export async function buildPlayerResolver(sb: any): Promise<(name: string) => st
   return (name: string) => map.get(normalizeNick(name)) ?? null;
 }
 
+// ─── Placares ao vivo em lote (Fase 2: cards da home) ───────────────────────────
+// Lê vários confrontos de uma vez (2 queries + N leituras de planilha em paralelo,
+// com o cache compartilhado). Só o placar — leve o bastante pro card da home.
+export type LivePlacar = {
+  gameId: string;
+  ok: boolean;
+  homeScore?: number;
+  awayScore?: number;
+  anyPending?: boolean;
+  tiedCategories?: number;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function placaresAoVivo(sb: any, gameIds: string[]): Promise<LivePlacar[]> {
+  if (!gameIds.length) return [];
+  const { data: games } = await sb
+    .from("games")
+    .select("id, external_url, home_team_id, away_team_id")
+    .in("id", gameIds);
+  const list = (games ?? []) as { id: string; external_url: string | null; home_team_id: string; away_team_id: string }[];
+
+  const teamIds = [...new Set(list.flatMap((g) => [g.home_team_id, g.away_team_id]))];
+  const { data: teams } = await sb.from("teams").select("id, sheet_nickname").in("id", teamIds);
+  const nick = new Map<string, string>(((teams ?? []) as { id: string; sheet_nickname: string | null }[]).map((t) => [t.id, t.sheet_nickname ?? ""]));
+
+  return Promise.all(
+    list.map(async (g): Promise<LivePlacar> => {
+      try {
+        if (!g.external_url) return { gameId: g.id, ok: false };
+        const u = parseExternalUrl(g.external_url);
+        if (!u) return { gameId: g.id, ok: false };
+        const text = await fetchGviz(u.docId, u.gid, false);
+        const data = readConfrontoFromGviz(text, nick.get(g.home_team_id) ?? "", nick.get(g.away_team_id) ?? "");
+        return {
+          gameId: g.id,
+          ok: true,
+          homeScore: data.homeScore,
+          awayScore: data.awayScore,
+          anyPending: data.anyPending,
+          tiedCategories: data.tiedCategories,
+        };
+      } catch {
+        return { gameId: g.id, ok: false };
+      }
+    }),
+  );
+}
+
 export type PrepareResult =
   | { ok: false; reason: "nao_encontrado" | "sem_planilha" | "parse"; message?: string; meta?: GameMeta }
   | {

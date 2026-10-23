@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
+import { serverClient, placaresAoVivo, type LivePlacar } from "@/lib/confronto-server";
 import {
   ArrowUpRight, Trophy, Users, CalendarDays, ClipboardList,
   BarChart2, ChevronDown,
@@ -25,6 +27,9 @@ type GameRow = {
   home_score: number | null;
   away_score: number | null;
   week_number: number | null;
+  game_number_in_week: number | null;
+  game_code: string | null;
+  status: string;
   season_id: string;
   external_url: string | null;
 };
@@ -55,6 +60,11 @@ const shortcuts = [
   { to: "/escalar",    label: "Escalar",    desc: "Monte sua escalação",       icon: ClipboardList },
   { to: "/calendario", label: "Calendário", desc: "Próximas rodadas",          icon: CalendarDays },
 ] as const;
+
+// Placar ao vivo dos cards (Fase 2): lê as planilhas dos jogos scheduled no servidor.
+const placaresFn = createServerFn({ method: "POST" })
+  .inputValidator((gameIds: string[]) => gameIds)
+  .handler(async ({ data }): Promise<LivePlacar[]> => placaresAoVivo(serverClient(), data));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -169,22 +179,55 @@ function GamesSection({
     }
   }, [selectedSeasonId]);
 
+  // placar ao vivo por jogo (gid -> placar lido da planilha)
+  const [live, setLive] = useState<Map<string, LivePlacar>>(new Map());
+
   // Busca jogos da semana selecionada sob demanda
   useEffect(() => {
     if (!selectedSeasonId || selectedWeek == null) return;
 
     setLoadingGames(true);
+    setLive(new Map());
     supabase
       .from("games")
-      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, season_id, external_url")
+      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week, game_code, status, season_id, external_url")
       .eq("season_id", selectedSeasonId)
       .eq("week_number", selectedWeek)
       .eq("is_playoff", false)
+      .order("game_number_in_week" as "week_number", { ascending: true })
       .then(({ data }) => {
         setWeekGames((data as unknown as GameRow[]) ?? []);
         setLoadingGames(false);
       });
   }, [selectedSeasonId, selectedWeek]);
+
+  // Placar ao vivo dos jogos ainda não finais que têm planilha (load + polling 60s).
+  useEffect(() => {
+    const ids = weekGames.filter((g) => g.status !== "final" && g.external_url).map((g) => g.id);
+    if (ids.length === 0) return;
+    let alive = true;
+    async function load() {
+      try {
+        const res = await placaresFn({ data: ids });
+        if (!alive) return;
+        setLive((prev) => {
+          const m = new Map(prev);
+          for (const r of res) if (r.ok) m.set(r.gameId, r);
+          return m;
+        });
+      } catch {
+        /* mantém o que tinha */
+      }
+    }
+    load();
+    const t = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") load();
+    }, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [weekGames]);
 
   // Não lista temporadas futuras (posteriores à corrente) no seletor.
   const currentStart = seasons.find((s) => s.id === defaultSeasonId)?.start_year ?? Infinity;
@@ -192,6 +235,19 @@ function GamesSection({
     .filter((s) => s.start_year <= currentStart)
     .map((s) => ({ value: s.id, label: `Temporada ${s.label}` }));
   const activeWeek = selectedWeek ?? (weekOptions[0]?.value ?? null);
+
+  // Agrupa por rodada (game_number_in_week) — cada semana pode ter 1 a 3 rodadas.
+  const rodadas = useMemo(() => {
+    const m = new Map<number, GameRow[]>();
+    for (const g of weekGames) {
+      const k = g.game_number_in_week ?? 1;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(g);
+    }
+    return [...m.entries()].sort((a, b) => a[0] - b[0]);
+  }, [weekGames]);
+
+  const multiplasRodadas = rodadas.length > 1;
 
   return (
     <div>
@@ -215,66 +271,100 @@ function GamesSection({
       ) : weekGames.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum jogo encontrado.</p>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {weekGames.map((g) => {
-            const home = teamMap.get(g.home_team_id);
-            const away = teamMap.get(g.away_team_id);
-            const hasScore = g.home_score != null && g.away_score != null;
-            const homeWon = hasScore && g.home_score! > g.away_score!;
-            const awayWon = hasScore && g.away_score! > g.home_score!;
-            const tied   = hasScore && g.home_score! === g.away_score!;
-            const inner = (
-              <>
-                <div className={cn("flex items-center justify-between gap-2", awayWon && "opacity-50")}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    {home && <TeamLogo team={home} />}
-                    <span className={cn("text-sm font-medium truncate", homeWon && "font-semibold")}>
-                      {home?.name ?? "—"}
-                    </span>
-                  </div>
-                  <span className={cn("text-sm tabular-nums font-bold shrink-0", homeWon && "text-[color:var(--court)]")}>
-                    {hasScore ? g.home_score : ""}
-                  </span>
+        <div className="space-y-6">
+          {rodadas.map(([rod, gs]) => (
+            <div key={rod}>
+              {multiplasRodadas && (
+                <div className="mb-2.5 flex items-center gap-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--court)]">
+                    Rodada {rod}
+                  </h3>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
-                <div className="my-1.5 border-t border-border/50" />
-                <div className={cn("flex items-center justify-between gap-2", homeWon && "opacity-50")}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    {away && <TeamLogo team={away} />}
-                    <span className={cn("text-sm font-medium truncate", awayWon && "font-semibold")}>
-                      {away?.name ?? "—"}
-                    </span>
-                  </div>
-                  <span className={cn("text-sm tabular-nums font-bold shrink-0", awayWon && "text-[color:var(--court)]")}>
-                    {hasScore ? g.away_score : ""}
-                  </span>
-                </div>
-                {!hasScore && (
-                  <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-muted-foreground">A jogar</p>
-                )}
-                {tied && (
-                  <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-amber-600">Empate</p>
-                )}
-              </>
-            );
-            return g.external_url ? (
-              <Link
-                key={g.id}
-                to="/confronto/$gameId"
-                params={{ gameId: g.id }}
-                title="Ver confronto ao vivo"
-                className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-[color:var(--court)] hover:bg-accent"
-              >
-                {inner}
-              </Link>
-            ) : (
-              <div key={g.id} className="rounded-lg border border-border bg-card p-3">
-                {inner}
+              )}
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {gs.map((g) => (
+                  <GameCard key={g.id} g={g} teamMap={teamMap} live={live.get(g.id)} />
+                ))}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+// ─── GameCard (placar do banco quando final; ao vivo da planilha senão) ─────────
+
+function GameCard({
+  g,
+  teamMap,
+  live,
+}: {
+  g: GameRow;
+  teamMap: Map<string, StandingsTeam>;
+  live: LivePlacar | undefined;
+}) {
+  const home = teamMap.get(g.home_team_id);
+  const away = teamMap.get(g.away_team_id);
+  const isFinal = g.status === "final";
+  const hasLive = !isFinal && !!live && live.ok;
+
+  const hs = isFinal ? g.home_score : hasLive ? live!.homeScore! : null;
+  const as = isFinal ? g.away_score : hasLive ? live!.awayScore! : null;
+  const hasScore = hs != null && as != null;
+  const homeWon = hasScore && hs! > as!;
+  const awayWon = hasScore && as! > hs!;
+  const tied = hasScore && hs! === as!;
+
+  const inner = (
+    <>
+      <div className={cn("flex items-center justify-between gap-2", awayWon && "opacity-50")}>
+        <div className="flex items-center gap-2 min-w-0">
+          {home && <TeamLogo team={home} />}
+          <span className={cn("text-sm font-medium truncate", homeWon && "font-semibold")}>{home?.name ?? "—"}</span>
+        </div>
+        <span className={cn("text-sm tabular-nums font-bold shrink-0", homeWon && "text-[color:var(--court)]")}>
+          {hasScore ? hs : ""}
+        </span>
+      </div>
+      <div className="my-1.5 border-t border-border/50" />
+      <div className={cn("flex items-center justify-between gap-2", homeWon && "opacity-50")}>
+        <div className="flex items-center gap-2 min-w-0">
+          {away && <TeamLogo team={away} />}
+          <span className={cn("text-sm font-medium truncate", awayWon && "font-semibold")}>{away?.name ?? "—"}</span>
+        </div>
+        <span className={cn("text-sm tabular-nums font-bold shrink-0", awayWon && "text-[color:var(--court)]")}>
+          {hasScore ? as : ""}
+        </span>
+      </div>
+      {isFinal ? (
+        tied ? (
+          <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-amber-600">Empate</p>
+        ) : null
+      ) : hasLive ? (
+        <p className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+          Ao vivo
+        </p>
+      ) : (
+        <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-muted-foreground">A jogar</p>
+      )}
+    </>
+  );
+
+  return g.external_url ? (
+    <Link
+      to="/confronto/$gameId"
+      params={{ gameId: g.id }}
+      title="Ver confronto ao vivo"
+      className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-[color:var(--court)] hover:bg-accent"
+    >
+      {inner}
+    </Link>
+  ) : (
+    <div className="rounded-lg border border-border bg-card p-3">{inner}</div>
   );
 }
 
