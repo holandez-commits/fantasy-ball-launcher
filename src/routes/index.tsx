@@ -257,16 +257,15 @@ function GamesSection({
               </>
             );
             return g.external_url ? (
-              <a
+              <Link
                 key={g.id}
-                href={g.external_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Abrir planilha do confronto"
+                to="/confronto/$gameId"
+                params={{ gameId: g.id }}
+                title="Ver confronto ao vivo"
                 className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-[color:var(--court)] hover:bg-accent"
               >
                 {inner}
-              </a>
+              </Link>
             ) : (
               <div key={g.id} className="rounded-lg border border-border bg-card p-3">
                 {inner}

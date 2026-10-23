@@ -28,6 +28,8 @@ import { Route as ClassificacaoRouteImport } from './routes/classificacao'
 import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TimesSlugRouteImport } from './routes/times_.$slug'
+import { Route as ConfrontoGameIdRouteImport } from './routes/confronto_.$gameId'
+import { Route as AdminResultadosRouteImport } from './routes/admin.resultados'
 import { Route as AdminMercadoRouteImport } from './routes/admin.mercado'
 import { Route as AdminFecharSemanaRouteImport } from './routes/admin.fechar-semana'
 import { Route as AdminConsolidarLockRouteImport } from './routes/admin.consolidar-lock'
@@ -127,6 +129,16 @@ const TimesSlugRoute = TimesSlugRouteImport.update({
   path: '/times/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfrontoGameIdRoute = ConfrontoGameIdRouteImport.update({
+  id: '/confronto_/$gameId',
+  path: '/confronto/$gameId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminResultadosRoute = AdminResultadosRouteImport.update({
+  id: '/admin/resultados',
+  path: '/admin/resultados',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminMercadoRoute = AdminMercadoRouteImport.update({
   id: '/admin/mercado',
   path: '/admin/mercado',
@@ -165,6 +177,8 @@ export interface FileRoutesByFullPath {
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
   '/admin/mercado': typeof AdminMercadoRoute
+  '/admin/resultados': typeof AdminResultadosRoute
+  '/confronto/$gameId': typeof ConfrontoGameIdRoute
   '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesByTo {
@@ -189,6 +203,8 @@ export interface FileRoutesByTo {
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
   '/admin/mercado': typeof AdminMercadoRoute
+  '/admin/resultados': typeof AdminResultadosRoute
+  '/confronto/$gameId': typeof ConfrontoGameIdRoute
   '/times/$slug': typeof TimesSlugRoute
 }
 export interface FileRoutesById {
@@ -214,6 +230,8 @@ export interface FileRoutesById {
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
   '/admin/mercado': typeof AdminMercadoRoute
+  '/admin/resultados': typeof AdminResultadosRoute
+  '/confronto_/$gameId': typeof ConfrontoGameIdRoute
   '/times_/$slug': typeof TimesSlugRoute
 }
 export interface FileRouteTypes {
@@ -240,6 +258,8 @@ export interface FileRouteTypes {
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
     | '/admin/mercado'
+    | '/admin/resultados'
+    | '/confronto/$gameId'
     | '/times/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -264,6 +284,8 @@ export interface FileRouteTypes {
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
     | '/admin/mercado'
+    | '/admin/resultados'
+    | '/confronto/$gameId'
     | '/times/$slug'
   id:
     | '__root__'
@@ -288,6 +310,8 @@ export interface FileRouteTypes {
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
     | '/admin/mercado'
+    | '/admin/resultados'
+    | '/confronto_/$gameId'
     | '/times_/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -313,6 +337,8 @@ export interface RootRouteChildren {
   AdminConsolidarLockRoute: typeof AdminConsolidarLockRoute
   AdminFecharSemanaRoute: typeof AdminFecharSemanaRoute
   AdminMercadoRoute: typeof AdminMercadoRoute
+  AdminResultadosRoute: typeof AdminResultadosRoute
+  ConfrontoGameIdRoute: typeof ConfrontoGameIdRoute
   TimesSlugRoute: typeof TimesSlugRoute
 }
 
@@ -346,18 +372,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NoticiasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/mercado': {
-      id: '/mercado'
-      path: '/mercado'
-      fullPath: '/mercado'
-      preLoaderRoute: typeof MercadoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/movimentacoes': {
       id: '/movimentacoes'
       path: '/movimentacoes'
       fullPath: '/movimentacoes'
       preLoaderRoute: typeof MovimentacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mercado': {
+      id: '/mercado'
+      path: '/mercado'
+      fullPath: '/mercado'
+      preLoaderRoute: typeof MercadoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/medias': {
@@ -451,6 +477,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/confronto_/$gameId': {
+      id: '/confronto_/$gameId'
+      path: '/confronto/$gameId'
+      fullPath: '/confronto/$gameId'
+      preLoaderRoute: typeof ConfrontoGameIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/resultados': {
+      id: '/admin/resultados'
+      path: '/admin/resultados'
+      fullPath: '/admin/resultados'
+      preLoaderRoute: typeof AdminResultadosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/mercado': {
       id: '/admin/mercado'
       path: '/admin/mercado'
@@ -497,6 +537,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminConsolidarLockRoute: AdminConsolidarLockRoute,
   AdminFecharSemanaRoute: AdminFecharSemanaRoute,
   AdminMercadoRoute: AdminMercadoRoute,
+  AdminResultadosRoute: AdminResultadosRoute,
+  ConfrontoGameIdRoute: ConfrontoGameIdRoute,
   TimesSlugRoute: TimesSlugRoute,
 }
 export const routeTree = rootRouteImport
