@@ -15,6 +15,7 @@ import {
   ListChecks,
   Settings,
   ArrowLeftRight,
+  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -122,6 +123,12 @@ export const adminItems: NavItem[] = [
     label: "Preencher escalações pendentes",
     icon: ListChecks,
     desc: "Completar quem não escalou",
+  },
+  {
+    to: "/admin/resultados",
+    label: "Fechar jogos da semana",
+    icon: CheckCircle2,
+    desc: "Lançar placares e finalizar os jogos",
   },
   {
     to: "/admin/mercado",

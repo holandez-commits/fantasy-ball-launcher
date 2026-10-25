@@ -442,9 +442,13 @@ function HomePage() {
     return m;
   }, [standingsData]);
 
-  const allStandings     = useMemo(() => buildStandings(teams, currentSeasonGames, true, standingsMap), [teams, currentSeasonGames, standingsMap]);
-  const donutStandings   = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Donut"), currentSeasonGames, true, standingsMap), [teams, currentSeasonGames, standingsMap]);
-  const badboysStandings = useMemo(() => buildStandings(teams.filter((t) => t.conference === "Bad Boys"), currentSeasonGames, true, standingsMap), [teams, currentSeasonGames, standingsMap]);
+  // Na home a classificação é da temporada atual: times extintos ficam de fora.
+  // (teams completo continua em teamMap, usado nos jogos da semana.)
+  const activeTeams = useMemo(() => teams.filter((t) => t.is_active), [teams]);
+
+  const allStandings     = useMemo(() => buildStandings(activeTeams, currentSeasonGames, true, standingsMap), [activeTeams, currentSeasonGames, standingsMap]);
+  const donutStandings   = useMemo(() => buildStandings(activeTeams.filter((t) => t.conference === "Donut"), currentSeasonGames, true, standingsMap), [activeTeams, currentSeasonGames, standingsMap]);
+  const badboysStandings = useMemo(() => buildStandings(activeTeams.filter((t) => t.conference === "Bad Boys"), currentSeasonGames, true, standingsMap), [activeTeams, currentSeasonGames, standingsMap]);
 
   const currentStandings =
     activeTab === "geral"   ? allStandings :

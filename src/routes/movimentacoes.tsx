@@ -43,6 +43,9 @@ type Mov = {
 };
 
 const POLL_MS = 20_000;
+const PAGE_SIZE = 30;
+
+type Filtros = { months: string[]; teams: { id: string; name: string }[] };
 
 function typeTone(type: string): string {
   switch (type) {
@@ -83,24 +86,66 @@ function singleTeamSummary(m: Mov): { team: string; verb: string; player: string
   return { team, verb, player: p?.player ?? "—", extra };
 }
 
+/** "2026-10" -> "Outubro de 2026". */
+function monthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  const label = new Date(y, m - 1, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+const selectClass =
+  "h-9 rounded-md border border-border bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[color:var(--court)]/40";
+
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto max-w-4xl px-4 py-12 md:px-6">{children}</div>;
 }
 
 function MovimentacoesPage() {
-  const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false); // temporada resolvida + filtros carregados
+  const [loading, setLoading] = useState(true); // carregando a lista (1ª carga ou troca de filtro)
+  const [loadingMore, setLoadingMore] = useState(false);
   const [movs, setMovs] = useState<Mov[]>([]);
+  const [total, setTotal] = useState(0);
   const [season, setSeason] = useState<CurrentSeason | null>(null);
+  const [filtros, setFiltros] = useState<Filtros>({ months: [], teams: [] });
+  const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [teamFilter, setTeamFilter] = useState<string>("all");
   const seasonId = useRef<string | null>(null);
+  // Invalida respostas antigas quando o filtro muda no meio de uma requisição.
+  const reqId = useRef(0);
 
-  const fetchMovs = useCallback(async () => {
-    const { data, error } = await callRpc("get_movimentacoes", {
+  const hasFilter = monthFilter !== "all" || teamFilter !== "all";
+
+  const fetchPage = useCallback(
+    async (month: string, team: string, offset: number, limit: number) => {
+      const { data, error } = await callRpc("get_movimentacoes_pagina", {
+        _season_id: seasonId.current,
+        _month: month === "all" ? null : month,
+        _team_id: team === "all" ? null : team,
+        _limit: limit,
+        _offset: offset,
+      });
+      if (error || !Array.isArray(data)) return null;
+      const rows = data as (Mov & { total_count: number | string })[];
+      return { rows: rows as Mov[], total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
+    },
+    [],
+  );
+
+  const fetchFiltros = useCallback(async () => {
+    const { data, error } = await callRpc("get_movimentacoes_filtros", {
       _season_id: seasonId.current,
-      _limit: 200,
     });
-    if (!error && Array.isArray(data)) setMovs(data as Mov[]);
+    if (!error && data && typeof data === "object") {
+      const f = data as Partial<Filtros>;
+      setFiltros({ months: f.months ?? [], teams: f.teams ?? [] });
+    }
   }, []);
 
+  // Temporada atual + opções dos filtros.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -108,15 +153,66 @@ function MovimentacoesPage() {
       if (cancelled) return;
       setSeason(cur);
       seasonId.current = cur?.id ?? null;
-      await fetchMovs();
-      if (!cancelled) setLoading(false);
+      await fetchFiltros();
+      if (!cancelled) setReady(true);
     })();
-    const id = window.setInterval(() => void fetchMovs(), POLL_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
     };
-  }, [fetchMovs]);
+  }, [fetchFiltros]);
+
+  // Primeira página: na carga inicial e a cada mudança de filtro.
+  useEffect(() => {
+    if (!ready) return;
+    const my = ++reqId.current;
+    setLoading(true);
+    void (async () => {
+      const res = await fetchPage(monthFilter, teamFilter, 0, PAGE_SIZE);
+      if (my !== reqId.current) return;
+      if (res) {
+        setMovs(res.rows);
+        setTotal(res.total);
+      }
+      setLoading(false);
+    })();
+  }, [ready, monthFilter, teamFilter, fetchPage]);
+
+  // Atualização automática: re-busca só a primeira página e preserva o que já foi
+  // carregado além dela (sem duplicar), então "Carregar mais" não se perde.
+  useEffect(() => {
+    if (!ready) return;
+    const id = window.setInterval(() => {
+      const my = reqId.current;
+      void (async () => {
+        const [res] = await Promise.all([
+          fetchPage(monthFilter, teamFilter, 0, PAGE_SIZE),
+          fetchFiltros(),
+        ]);
+        if (!res || my !== reqId.current) return;
+        setMovs((old) => {
+          const fresh = new Set(res.rows.map((m) => m.id));
+          return [...res.rows, ...old.filter((m) => !fresh.has(m.id))];
+        });
+        setTotal(res.total);
+      })();
+    }, POLL_MS);
+    return () => window.clearInterval(id);
+  }, [ready, monthFilter, teamFilter, fetchPage, fetchFiltros]);
+
+  async function loadMore() {
+    if (loadingMore) return;
+    const my = reqId.current;
+    setLoadingMore(true);
+    const res = await fetchPage(monthFilter, teamFilter, movs.length, PAGE_SIZE);
+    if (res && my === reqId.current) {
+      setMovs((old) => {
+        const have = new Set(old.map((m) => m.id));
+        return [...old, ...res.rows.filter((m) => !have.has(m.id))];
+      });
+      setTotal(res.total);
+    }
+    setLoadingMore(false);
+  }
 
   return (
     <Shell>
@@ -128,6 +224,54 @@ function MovimentacoesPage() {
         Dispensas, trocas, contratações e IR já processados pelo admin. Atualiza automaticamente.
       </p>
 
+      {ready && (filtros.months.length > 0 || filtros.teams.length > 0) && (
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <select
+            aria-label="Filtrar por mês e ano"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className={selectClass}
+          >
+            <option value="all">Todos os meses</option>
+            {filtros.months.map((k) => (
+              <option key={k} value={k}>
+                {monthLabel(k)}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filtrar por equipe"
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+            className={selectClass}
+          >
+            <option value="all">Todas as equipes</option>
+            {filtros.teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          {hasFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                setMonthFilter("all");
+                setTeamFilter("all");
+              }}
+              className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Limpar filtros
+            </button>
+          )}
+          {!loading && (
+            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+              {movs.length} de {total}
+            </span>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="mt-8 space-y-3">
           <Skeleton className="h-20 w-full" />
@@ -136,10 +280,12 @@ function MovimentacoesPage() {
         </div>
       ) : movs.length === 0 ? (
         <p className="mt-10 text-sm text-muted-foreground">
-          Nenhuma movimentação processada ainda.
+          {hasFilter
+            ? "Nenhuma movimentação para esse filtro."
+            : "Nenhuma movimentação processada ainda."}
         </p>
       ) : (
-        <div className="mt-8 space-y-3">
+        <div className="mt-6 space-y-3">
           {movs.map((m) => (
             <div key={m.id} className="rounded-lg border border-border bg-card px-4 py-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -202,6 +348,19 @@ function MovimentacoesPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {!loading && movs.length > 0 && movs.length < total && (
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="h-9 rounded-md border border-border bg-card px-4 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60"
+          >
+            {loadingMore ? "Carregando…" : `Carregar mais (${total - movs.length})`}
+          </button>
         </div>
       )}
     </Shell>
