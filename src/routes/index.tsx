@@ -340,9 +340,11 @@ function GameCard({
         </span>
       </div>
       {isFinal ? (
-        tied ? (
-          <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-amber-600">Empate</p>
-        ) : null
+        <p className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--court)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--court)]" />
+          Concluída
+          {tied && <span className="font-normal text-amber-600">· Empate</span>}
+        </p>
       ) : hasLive ? (
         <p className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-600">
           <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
