@@ -90,6 +90,8 @@ export function normalizeNick(s: string | null | undefined): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "") // remove acentos
     .toLowerCase()
+    .replace(/[.'’`´]/g, "") // pontos e apóstrofos: "C.J." == "CJ", "P.J." == "PJ"
+    .replace(/-/g, " ") // hífen vira espaço: "Karl-Anthony" == "Karl Anthony"
     .replace(/\s+/g, " ")
     .trim();
 }
