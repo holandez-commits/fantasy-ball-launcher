@@ -25,6 +25,7 @@ type GameRow = {
   away_score: number | null;
   week_number: number | null;
   game_number_in_week: number;
+  external_url: string | null;
 };
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -172,6 +173,15 @@ function GameCard({ g, teamMap }: { g: GameRow; teamMap: Map<string, TeamRow> })
       {tied && (
         <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-amber-600">Empate</p>
       )}
+      {g.external_url && (
+        <Link
+          to="/confronto/$gameId"
+          params={{ gameId: g.id }}
+          className="mt-2 block border-t border-border/50 pt-2 text-center text-[11px] font-medium text-muted-foreground hover:text-[color:var(--court)] hover:underline"
+        >
+          Ver partida →
+        </Link>
+      )}
     </div>
   );
 }
@@ -219,7 +229,7 @@ function CalendarioPage() {
     setWeekFilter(ALL);
     supabase
       .from("games")
-      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week")
+      .select("id, home_team_id, away_team_id, home_score, away_score, week_number, game_number_in_week, external_url")
       .eq("season_id", seasonId)
       .eq("is_playoff", false)
       .order("week_number", { ascending: true })

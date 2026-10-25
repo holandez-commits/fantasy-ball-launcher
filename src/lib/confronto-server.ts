@@ -128,6 +128,8 @@ export type LivePlacar = {
   homeScore?: number;
   awayScore?: number;
   anyPending?: boolean;
+  homePending?: number; // jogadores do mandante ainda sem stats
+  awayPending?: number; // jogadores do visitante ainda sem stats
   tiedCategories?: number;
 };
 
@@ -158,6 +160,8 @@ export async function placaresAoVivo(sb: any, gameIds: string[]): Promise<LivePl
           homeScore: data.homeScore,
           awayScore: data.awayScore,
           anyPending: data.anyPending,
+          homePending: data.home.pendingCount,
+          awayPending: data.away.pendingCount,
           tiedCategories: data.tiedCategories,
         };
       } catch {

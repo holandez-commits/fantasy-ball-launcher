@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,25 +21,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { serverClient, prepareFinalizacao, type PrepareResult } from "@/lib/confronto-server";
-
-// ── Server fn: lê a planilha, resolve nomes e monta o payload (NÃO grava) ────────
-const prepararFn = createServerFn({ method: "POST" })
-  .inputValidator((gameId: string) => gameId)
-  .handler(async ({ data: gameId }): Promise<PrepareResult> => {
-    // data de hoje em horário de Brasília (Worker roda em UTC)
-    const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
-    return prepareFinalizacao(serverClient(), gameId, hoje);
-  });
-
-// RPCs admin (tipagem frouxa — não estão no types.ts)
-const callRpc = (fn: string, args?: Record<string, unknown>) =>
-  (
-    supabase.rpc as unknown as (
-      fn: string,
-      args?: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: { message: string } | null }>
-  ).call(supabase, fn, args);
+import type { PrepareResult, LivePlacar } from "@/lib/confronto-server";
+import { prepararFn, restantesFn, callRpc } from "@/lib/finalizar";
 
 export const Route = createFileRoute("/admin/resultados")({
   head: () => ({
@@ -95,6 +77,33 @@ function classifyPrep(prep: PrepareResult): { status: PreviewItem["status"]; det
   return { status: "ok", detail: placar };
 }
 
+// Quantos jogadores ainda faltam jogar no confronto (mandante × visitante).
+function RestantesTag({ live, loading }: { live: LivePlacar | undefined; loading: boolean }) {
+  if (!live) {
+    return loading ? <span className="text-xs text-muted-foreground">lendo…</span> : null;
+  }
+  if (!live.ok) {
+    return (
+      <span title="Não consegui ler a planilha deste confronto" className="text-xs text-destructive">
+        erro de leitura
+      </span>
+    );
+  }
+  const h = live.homePending ?? 0;
+  const a = live.awayPending ?? 0;
+  if (h + a === 0) {
+    return <span className="text-xs font-semibold text-[color:var(--court)]">✓ completo</span>;
+  }
+  return (
+    <span
+      title={`Faltam jogar: ${h} do mandante e ${a} do visitante`}
+      className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700"
+    >
+      {h + a} restantes ({h} × {a})
+    </span>
+  );
+}
+
 function ResultadosPage() {
   const { ready, forbidden } = useRequireAuth({ role: "admin" });
 
@@ -106,6 +115,9 @@ function ResultadosPage() {
   const [games, setGames] = useState<GameRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [outcomes, setOutcomes] = useState<Record<string, RowOutcome>>({});
+  // jogadores restantes por confronto (lidos da planilha; só jogos não finalizados)
+  const [live, setLive] = useState<Record<string, LivePlacar>>({});
+  const [liveLoading, setLiveLoading] = useState(false);
 
   const [preview, setPreview] = useState<{ scope: string; items: PreviewItem[] } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -142,6 +154,7 @@ function ResultadosPage() {
     if (!seasonId || week == null) return;
     setLoading(true);
     setOutcomes({});
+    setLive({});
     const { data } = await supabase
       .from("games")
       .select("id, game_code, home_team_id, away_team_id, home_score, away_score, status, external_url")
@@ -149,8 +162,28 @@ function ResultadosPage() {
       .eq("week_number", week)
       .eq("is_playoff", false)
       .order("game_code", { ascending: true });
-    setGames((data as unknown as GameRow[]) ?? []);
+    const lista = (data as unknown as GameRow[]) ?? [];
+    setGames(lista);
     setLoading(false);
+    void carregarRestantes(lista);
+  }
+
+  // Lê as planilhas dos jogos ainda não finalizados e guarda quantos jogadores faltam jogar.
+  async function carregarRestantes(lista: GameRow[]) {
+    const ids = lista.filter((g) => g.status !== "final" && g.external_url).map((g) => g.id);
+    if (!ids.length) {
+      setLive({});
+      return;
+    }
+    setLiveLoading(true);
+    try {
+      const res = await restantesFn({ data: ids });
+      setLive(Object.fromEntries(res.map((r) => [r.gameId, r])));
+    } catch {
+      /* mantém o que já estava na tela */
+    } finally {
+      setLiveLoading(false);
+    }
   }
   useEffect(() => {
     void loadGames();
@@ -312,6 +345,13 @@ function ResultadosPage() {
         >
           Finalizar a semana toda
         </Button>
+        <Button
+          variant="outline"
+          disabled={liveLoading || !games.some((g) => g.status !== "final" && g.external_url)}
+          onClick={() => void carregarRestantes(games)}
+        >
+          {liveLoading ? "Lendo planilhas…" : "Atualizar restantes"}
+        </Button>
       </div>
 
       {report && (
@@ -352,6 +392,7 @@ function ResultadosPage() {
                       <span className="tabular-nums text-muted-foreground">
                         {isFinal ? `${g.home_score}–${g.away_score}` : "—"}
                       </span>
+                      {!isFinal && g.external_url && <RestantesTag live={live[g.id]} loading={liveLoading} />}
                       <span className={isFinal ? "rounded bg-[color:var(--court)]/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--court)]" : "rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground"}>
                         {isFinal ? "final" : "a jogar"}
                       </span>

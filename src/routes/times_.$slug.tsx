@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
 import { UserRound, ChevronLeft, ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { pickDefaultStatsSeason } from "../lib/seasons";
+import { espnPlayerUrl } from "../lib/links";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -302,7 +302,7 @@ function RosterTable({
                 <td className="px-4 py-2.5">
                   {entry.player?.espn_id ? (
                     <a
-                      href={`https://www.espn.com.br/nba/jogador/_/id/${entry.player.espn_id}`}
+                      href={espnPlayerUrl(entry.player.espn_id)}
                       target="_blank"
                       rel="noopener noreferrer"
                       title="Ver na ESPN"
@@ -708,9 +708,8 @@ function TimePage() {
       setSeason(currentSeason);
       setSeasons(allSeasons);
 
-      // Estatísticas/jogos: mais recente com jogos finalizados
-      const statsSeason = await pickDefaultStatsSeason(allSeasons);
-      setStatsSeasonId(statsSeason?.id ?? currentSeason.id);
+      // Estatísticas/jogos: abre na temporada atual (o seletor permite ver as anteriores)
+      setStatsSeasonId(currentSeason.id);
 
       // 3. Todos os times para ranking de conferência
       const { data: teamsData } = await supabase.from("teams").select("id, conference");
@@ -788,6 +787,7 @@ function TimePage() {
         .select("id, week_number, home_team_id, away_team_id, home_score, away_score, home_team:teams!games_home_team_id_fkey(name, slug), away_team:teams!games_away_team_id_fkey(name, slug)")
         .eq("season_id", seasonId)
         .eq("is_playoff", false)
+        .eq("status", "final")
         .or(`home_team_id.eq.${t.id},away_team_id.eq.${t.id}`)
         .order("week_number", { ascending: false })
         .limit(5);

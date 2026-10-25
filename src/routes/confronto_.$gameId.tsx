@@ -8,10 +8,13 @@ import { cn } from "@/lib/utils";
 import {
   CATEGORIES,
   gvizUrl,
+  normalizeNick,
   parseExternalUrl,
   readConfrontoFromGviz,
   type ConfrontoOriented,
 } from "../lib/confronto-sheet";
+import { espnPlayerUrl } from "../lib/links";
+import { FinalizarPartida } from "@/components/FinalizarPartida";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -35,7 +38,14 @@ type GameMeta = {
 
 type ConfrontoPayload =
   | { ok: false; reason: "nao_encontrado" | "sem_planilha" | "parse"; message?: string; meta?: GameMeta }
-  | { ok: true; meta: GameMeta; data: ConfrontoOriented; fetchedAt: number };
+  | {
+      ok: true;
+      meta: GameMeta;
+      data: ConfrontoOriented;
+      fetchedAt: number;
+      // nome normalizado (normalizeNick) → espn_id, para linkar os jogadores
+      espn: Record<string, string>;
+    };
 
 // ─── Camada de dados no SERVIDOR (Worker) — mesmo padrão da /classificacao ───────
 
@@ -76,6 +86,31 @@ async function fetchGvizCached(docId: string, gid: string): Promise<string> {
 
 const TEAM_COLS = "id, name, slug, logo_url, primary_color, sheet_nickname";
 
+// Mapa nome→espn_id (cache de 10 min por isolate). Nome que normaliza para dois
+// jogadores é ambíguo e fica sem link. Falha de leitura = sem links, nunca erro.
+let espnCache: { at: number; map: Record<string, string> } | null = null;
+const ESPN_TTL = 10 * 60_000;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadEspnMap(sb: any): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (espnCache && now - espnCache.at < ESPN_TTL) return espnCache.map;
+  try {
+    const { data } = await sb.from("players").select("full_name, espn_id");
+    const seen = new Map<string, string | null>();
+    for (const p of (data ?? []) as { full_name: string; espn_id: string | null }[]) {
+      const k = normalizeNick(p.full_name);
+      seen.set(k, seen.has(k) ? null : p.espn_id); // colisão → ambíguo
+    }
+    const map: Record<string, string> = {};
+    for (const [k, v] of seen) if (v) map[k] = v;
+    espnCache = { at: now, map };
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 const fetchConfronto = createServerFn({ method: "GET" })
   .inputValidator((gameId: string) => gameId)
   .handler(async ({ data: gameId }): Promise<ConfrontoPayload> => {
@@ -115,7 +150,8 @@ const fetchConfronto = createServerFn({ method: "GET" })
     try {
       const text = await fetchGvizCached(parsedUrl.docId, parsedUrl.gid);
       const data = readConfrontoFromGviz(text, meta.home.sheet_nickname ?? "", meta.away.sheet_nickname ?? "");
-      return { ok: true, meta, data, fetchedAt: Date.now() };
+      const espn = await loadEspnMap(sb);
+      return { ok: true, meta, data, fetchedAt: Date.now(), espn };
     } catch (e) {
       return { ok: false, reason: "parse", message: e instanceof Error ? e.message : String(e), meta };
     }
@@ -219,6 +255,19 @@ function ConfrontoPage() {
 
   const meta = payload.meta;
 
+  // Recarrega na hora (usado após fechar/reabrir a partida)
+  async function reload() {
+    setRefreshing(true);
+    try {
+      const next = await fetchConfronto({ data: gameId });
+      setPayload(next);
+      lastFetch.current = next.ok ? next.fetchedAt : Date.now();
+      setSecsAgo(0);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 md:px-8 md:py-14">
       <Link
@@ -253,6 +302,15 @@ function ConfrontoPage() {
           </div>
 
           <Scoreboard payload={payload} />
+
+          <FinalizarPartida
+            gameId={meta.gameId}
+            status={meta.status}
+            homeName={meta.home.name}
+            awayName={meta.away.name}
+            hasPlanilha={!!meta.planilhaUrl}
+            onChanged={reload}
+          />
 
           {/* Estados de erro de leitura */}
           {!payload.ok && payload.reason === "sem_planilha" && (
@@ -299,8 +357,8 @@ function ConfrontoPage() {
               <CategoryTable payload={payload} />
 
               <div className="mt-8 grid gap-8">
-                <BoxScore title={meta.home.name} side={payload.data.home} />
-                <BoxScore title={meta.away.name} side={payload.data.away} />
+                <BoxScore title={meta.home.name} side={payload.data.home} espn={payload.espn} />
+                <BoxScore title={meta.away.name} side={payload.data.away} espn={payload.espn} />
               </div>
             </>
           )}
@@ -426,7 +484,15 @@ function CategoryTable({ payload }: { payload: Extract<ConfrontoPayload, { ok: t
 
 // ─── Box score por time ─────────────────────────────────────────────────────────
 
-function BoxScore({ title, side }: { title: string; side: ConfrontoOriented["home"] }) {
+function BoxScore({
+  title,
+  side,
+  espn,
+}: {
+  title: string;
+  side: ConfrontoOriented["home"];
+  espn: Record<string, string>;
+}) {
   return (
     <div>
       <h3 className="mb-2 font-display text-lg tracking-tight">{title}</h3>
@@ -453,7 +519,19 @@ function BoxScore({ title, side }: { title: string; side: ConfrontoOriented["hom
                       <span className="italic text-muted-foreground">— vaga —</span>
                     ) : (
                       <span className="flex items-center gap-1.5">
-                        <span className="truncate font-medium">{p.name}</span>
+                        {espn[normalizeNick(p.name)] ? (
+                          <a
+                            href={espnPlayerUrl(espn[normalizeNick(p.name)])}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Ver na ESPN"
+                            className="truncate font-medium hover:text-[color:var(--court)] hover:underline"
+                          >
+                            {p.name}
+                          </a>
+                        ) : (
+                          <span className="truncate font-medium">{p.name}</span>
+                        )}
                         {p.isReserve && (
                           <span
                             title="Reserva entrou no lugar do titular"
