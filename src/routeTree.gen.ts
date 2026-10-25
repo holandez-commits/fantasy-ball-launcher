@@ -14,6 +14,7 @@ import { Route as RegrasRouteImport } from './routes/regras'
 import { Route as RecordesRouteImport } from './routes/recordes'
 import { Route as NoticiasRouteImport } from './routes/noticias'
 import { Route as MovimentacoesRouteImport } from './routes/movimentacoes'
+import { Route as MinhaContaRouteImport } from './routes/minha-conta'
 import { Route as MercadoRouteImport } from './routes/mercado'
 import { Route as MediasRouteImport } from './routes/medias'
 import { Route as LoginRouteImport } from './routes/login'
@@ -57,6 +58,11 @@ const NoticiasRoute = NoticiasRouteImport.update({
 const MovimentacoesRoute = MovimentacoesRouteImport.update({
   id: '/movimentacoes',
   path: '/movimentacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MinhaContaRoute = MinhaContaRouteImport.update({
+  id: '/minha-conta',
+  path: '/minha-conta',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MercadoRoute = MercadoRouteImport.update({
@@ -169,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
+  '/minha-conta': typeof MinhaContaRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
+  '/minha-conta': typeof MinhaContaRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
   '/mercado': typeof MercadoRoute
+  '/minha-conta': typeof MinhaContaRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/medias'
     | '/mercado'
+    | '/minha-conta'
     | '/movimentacoes'
     | '/noticias'
     | '/recordes'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/medias'
     | '/mercado'
+    | '/minha-conta'
     | '/movimentacoes'
     | '/noticias'
     | '/recordes'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/medias'
     | '/mercado'
+    | '/minha-conta'
     | '/movimentacoes'
     | '/noticias'
     | '/recordes'
@@ -329,6 +341,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MediasRoute: typeof MediasRoute
   MercadoRoute: typeof MercadoRoute
+  MinhaContaRoute: typeof MinhaContaRoute
   MovimentacoesRoute: typeof MovimentacoesRoute
   NoticiasRoute: typeof NoticiasRoute
   RecordesRoute: typeof RecordesRoute
@@ -377,6 +390,13 @@ declare module '@tanstack/react-router' {
       path: '/movimentacoes'
       fullPath: '/movimentacoes'
       preLoaderRoute: typeof MovimentacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/minha-conta': {
+      id: '/minha-conta'
+      path: '/minha-conta'
+      fullPath: '/minha-conta'
+      preLoaderRoute: typeof MinhaContaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mercado': {
@@ -529,6 +549,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MediasRoute: MediasRoute,
   MercadoRoute: MercadoRoute,
+  MinhaContaRoute: MinhaContaRoute,
   MovimentacoesRoute: MovimentacoesRoute,
   NoticiasRoute: NoticiasRoute,
   RecordesRoute: RecordesRoute,

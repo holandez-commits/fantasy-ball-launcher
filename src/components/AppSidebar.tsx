@@ -1,6 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
-import { ChevronLeft, Shield, LogOut, LogIn } from "lucide-react";
+import { ChevronLeft, Shield, LogOut, LogIn, KeyRound } from "lucide-react";
 import { navSections, gmItems, adminItems, type NavItem } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -62,8 +62,7 @@ export function SidebarContent({
   const { user, loading, isAdmin, isGm, teamSlug, signOut } = useAuth();
   const showGestao = !loading && (isGm || isAdmin);
   const showAdmin = !loading && isAdmin;
-  const isActive = (to: string) =>
-    pathname === to || (to !== "/" && pathname.startsWith(to + "/"));
+  const isActive = (to: string) => pathname === to || (to !== "/" && pathname.startsWith(to + "/"));
 
   const SectionLabel = ({ label }: { label: string }) =>
     collapsed ? (
@@ -163,29 +162,41 @@ export function SidebarContent({
       <div className="border-t border-[color:var(--chrome-border)] px-2 py-3">
         {!loading &&
           (user ? (
-            <div
-              className={cn(
-                "flex items-center gap-2",
-                collapsed ? "justify-center" : "justify-between px-1",
-              )}
-            >
-              {!collapsed && (
-                <span className="min-w-0 truncate text-xs text-[color:var(--chrome-muted)]">
-                  {(user.user_metadata?.name as string | undefined) ?? user.email}
-                </span>
-              )}
-              <button
-                type="button"
-                title="Sair"
-                onClick={() => {
-                  onNavigate?.();
-                  void signOut();
-                }}
-                className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-[color:var(--chrome-muted)] hover:bg-[color:var(--chrome-hover)] hover:text-[color:var(--chrome-foreground)]"
+            <div>
+              <Link
+                to="/minha-conta"
+                title={collapsed ? "Minha conta" : undefined}
+                onClick={onNavigate}
+                className={itemClass(isActive("/minha-conta"), collapsed)}
               >
-                <LogOut className="h-4 w-4" />
-                {!collapsed && "Sair"}
-              </button>
+                {isActive("/minha-conta") && <ActiveBar />}
+                <KeyRound className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="truncate">Minha conta</span>}
+              </Link>
+              <div
+                className={cn(
+                  "mt-1 flex items-center gap-2",
+                  collapsed ? "flex-col justify-center" : "justify-between px-1",
+                )}
+              >
+                {!collapsed && (
+                  <span className="min-w-0 truncate text-xs text-[color:var(--chrome-muted)]">
+                    {(user.user_metadata?.name as string | undefined) ?? user.email}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  title="Sair"
+                  onClick={() => {
+                    onNavigate?.();
+                    void signOut();
+                  }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-[color:var(--chrome-muted)] hover:bg-[color:var(--chrome-hover)] hover:text-[color:var(--chrome-foreground)]"
+                >
+                  <LogOut className="h-4 w-4" />
+                  {!collapsed && "Sair"}
+                </button>
+              </div>
             </div>
           ) : (
             <Link
