@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
-import { UserRound, ChevronDown } from "lucide-react";
+import { UserRound, ChevronDown, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 
 type GM = {
   id: string;
@@ -11,6 +12,8 @@ type GM = {
   bio: string | null;
   avatar_url: string | null;
   joined_year: number | null;
+  /** só vem preenchido para usuários logados */
+  whatsapp?: string | null;
 };
 
 type TeamLite = {
@@ -34,7 +37,35 @@ export const Route = createFileRoute("/gms")({
   component: GMsPage,
 });
 
-function GMCard({ gm, team }: { gm: GM; team: TeamLite | undefined }) {
+/**
+ * Normaliza um telefone brasileiro para o formato do wa.me (só dígitos, com 55).
+ * Aceita "(11) 91234-5678", "+55 11 91234-5678", "011912345678" etc.
+ * Devolve null se não parecer um número válido (10 a 11 dígitos + DDI).
+ */
+function whatsappUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let d = raw.replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) {
+    // já tem DDI
+  } else {
+    d = d.replace(/^0+/, "");
+    if (d.length !== 10 && d.length !== 11) return null;
+    d = `55${d}`;
+  }
+  return `https://wa.me/${d}`;
+}
+
+function GMCard({
+  gm,
+  team,
+  canContact,
+}: {
+  gm: GM;
+  team: TeamLite | undefined;
+  canContact: boolean;
+}) {
+  const wa = canContact ? whatsappUrl(gm.whatsapp) : null;
   return (
     <li className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-[color:var(--court)]">
       <div className="flex items-start gap-4">
@@ -67,6 +98,17 @@ function GMCard({ gm, team }: { gm: GM; team: TeamLite | undefined }) {
       {gm.bio && (
         <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-muted-foreground">{gm.bio}</p>
       )}
+      {wa && (
+        <a
+          href={wa}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-[color:var(--court)] hover:text-[color:var(--court)]"
+        >
+          <MessageCircle className="h-4 w-4" />
+          WhatsApp
+        </a>
+      )}
     </li>
   );
 }
@@ -77,15 +119,23 @@ function GMsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const canContact = !!user;
 
   useEffect(() => {
+    // Espera a sessão resolver: o telefone só é pedido a quem está logado.
+    if (authLoading) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
       const [gmsRes, teamsRes] = await Promise.all([
         supabase
           .from("gms")
-          .select("id, full_name, nickname, bio, avatar_url, joined_year")
+          .select(
+            canContact
+              ? "id, full_name, nickname, bio, avatar_url, joined_year, whatsapp"
+              : "id, full_name, nickname, bio, avatar_url, joined_year",
+          )
           .order("full_name"),
         supabase
           .from("teams")
@@ -93,12 +143,12 @@ function GMsPage() {
       ]);
       if (cancelled) return;
       if (gmsRes.error) setError(gmsRes.error.message);
-      else setGms(gmsRes.data ?? []);
+      else setGms((gmsRes.data ?? []) as unknown as GM[]);
       if (!teamsRes.error) setTeams(teamsRes.data ?? []);
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [authLoading, canContact]);
 
   const teamForGm = (gmId: string) => teams.find((t) => t.gm_id === gmId);
 
@@ -128,7 +178,7 @@ function GMsPage() {
             {activeGms.length > 0 && (
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {activeGms.map((gm) => (
-                  <GMCard key={gm.id} gm={gm} team={teamForGm(gm.id)} />
+                  <GMCard key={gm.id} gm={gm} team={teamForGm(gm.id)} canContact={canContact} />
                 ))}
               </ul>
             )}
@@ -148,7 +198,7 @@ function GMsPage() {
                 {showInactive && (
                   <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 opacity-60">
                     {inactiveGms.map((gm) => (
-                      <GMCard key={gm.id} gm={gm} team={teamForGm(gm.id)} />
+                      <GMCard key={gm.id} gm={gm} team={teamForGm(gm.id)} canContact={canContact} />
                     ))}
                   </ul>
                 )}

@@ -25,6 +25,7 @@ type RosterEntry = {
   id: string;
   position: string | null;
   status: string;
+  ir_type?: string | null;
   player: { full_name: string; espn_id: string | null } | null;
   contract_years: { season_label: string; salary: number }[];
 };
@@ -239,10 +240,15 @@ function RosterTable({
   // Totais por ano
   const totals: Record<string, number> = {};
   for (const year of CONTRACT_YEARS) totals[year] = 0;
+  // IR fora da temporada: só 20% do salário da temporada atual conta (IR parcial conta 100%).
+  const capSalaryOf = (entry: RosterEntry, label: string, salary: number) =>
+    entry.status === "injured_reserve" && entry.ir_type === "out_of_season" && label === CONTRACT_YEARS[0]
+      ? Math.round(salary * 0.2)
+      : salary;
   for (const entry of all) {
     for (const cy of entry.contract_years ?? []) {
       if (totals[cy.season_label] !== undefined) {
-        totals[cy.season_label] += cy.salary;
+        totals[cy.season_label] += capSalaryOf(entry, cy.season_label, cy.salary);
       }
     }
   }
@@ -310,13 +316,26 @@ function RosterTable({
                     </span>
                   )}
                   {isInjured && (
-                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-600">IR</span>
+                    <span
+                      className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-600"
+                      title={
+                        entry.ir_type === "out_of_season"
+                          ? "IR fora da temporada: libera a vaga e só 20% do salário atual conta no cap"
+                          : "IR parcial: libera a vaga; o salário continua contando no cap"
+                      }
+                    >
+                      {entry.ir_type === "out_of_season"
+                        ? "IR · fora da temp."
+                        : entry.ir_type === "partial"
+                          ? "IR · parcial"
+                          : "IR"}
+                    </span>
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-muted-foreground">{entry.position ?? "—"}</td>
                 {CONTRACT_YEARS.map((y) => (
                   <td key={y} className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                    {salaryMap[y] ? fmtSalary(salaryMap[y]) : "—"}
+                    {salaryMap[y] ? fmtSalary(capSalaryOf(entry, y, salaryMap[y])) : "—"}
                   </td>
                 ))}
               </tr>
@@ -700,7 +719,7 @@ function TimePage() {
       // 4. Elenco
       const { data: rosterData } = await supabase
         .from("roster_entries")
-        .select("id, position, status, player:players(full_name, espn_id)")
+        .select("id, position, status, ir_type, player:players(full_name, espn_id)")
         .eq("team_id", t.id)
         .eq("season", currentSeason.start_year)
         .order("status");

@@ -39,6 +39,7 @@ type Mov = {
   status: string;
   processed_at: string | null;
   week_number: number | null;
+  ir_type?: string | null;
   items: MovItem[];
 };
 
@@ -75,7 +76,11 @@ function singleTeamSummary(m: Mov): { team: string; verb: string; player: string
     m.type === "release"
       ? "dispensou"
       : m.type === "ir"
-        ? "moveu para o IR"
+        ? m.ir_type === "out_of_season"
+          ? "moveu para o IR (fora da temporada)"
+          : m.ir_type === "partial"
+            ? "moveu para o IR parcial"
+            : "moveu para o IR"
         : m.type === "signing"
           ? "contratou"
           : "movimentou";

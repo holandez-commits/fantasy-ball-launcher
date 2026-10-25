@@ -10,7 +10,10 @@ import {
   fetchCurrentSeason,
   fetchMarketOpen,
   TX_TYPE_LABEL,
+  IR_TYPE_LABEL,
+  irTypeLabel,
   type CurrentSeason,
+  type IrType,
 } from "@/lib/market";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +50,7 @@ type TxRow = {
   week_number: number | null;
   proposed_by: string | null;
   created_at: string;
+  ir_type: string | null;
   proposerName: string | null;
   teamName: string | null;
   playerName: string | null;
@@ -60,6 +64,7 @@ type IrRow = {
   position: string | null;
   teamName: string | null;
   irSince: number | null;
+  irType: string | null;
 };
 
 type SigningRow = { entryId: string; name: string; teamName: string | null };
@@ -86,6 +91,7 @@ function AdminMercadoPage() {
   const [fila, setFila] = useState<TxRow[]>([]);
   const [aprovadas, setAprovadas] = useState<TxRow[]>([]);
   const [irRows, setIrRows] = useState<IrRow[]>([]);
+  const [irTypeChoice, setIrTypeChoice] = useState<Record<string, IrType>>({});
   const [leilaoWeek, setLeilaoWeek] = useState<number | null>(null);
   const [signings, setSignings] = useState<SigningRow[]>([]);
   const [posInputs, setPosInputs] = useState<Record<string, string>>({});
@@ -111,7 +117,7 @@ function AdminMercadoPage() {
 
       const txRes = await db
         .from("transactions")
-        .select("id, type, status, week_number, proposed_by, created_at")
+        .select("id, type, status, week_number, proposed_by, created_at, ir_type")
         .in("status", ["proposed", "accepted", "approved"])
         .order("created_at", { ascending: true });
       if (txRes.error) throw new Error(txRes.error.message);
@@ -135,7 +141,7 @@ function AdminMercadoPage() {
 
       const irRes = await db
         .from("roster_entries")
-        .select("id, player_id, position, ir_since_season, team_id, player:players(full_name)")
+        .select("id, player_id, position, ir_since_season, ir_type, team_id, player:players(full_name)")
         .eq("season", cur.start_year)
         .eq("status", "injured_reserve");
       if (irRes.error) throw new Error(irRes.error.message);
@@ -143,6 +149,7 @@ function AdminMercadoPage() {
         player_id: string;
         position: string | null;
         ir_since_season: number | null;
+        ir_type: string | null;
         team_id: string;
         player: { full_name: string } | null;
       }[];
@@ -327,6 +334,7 @@ function AdminMercadoPage() {
             position: e.position,
             teamName: teamName[e.team_id] ?? null,
             irSince: e.ir_since_season,
+            irType: e.ir_type,
           }))
           .sort((a, b) => (a.teamName ?? "").localeCompare(b.teamName ?? "")),
       );
@@ -375,7 +383,13 @@ function AdminMercadoPage() {
       tx.type === "ir" ? "executar_ir" : tx.type === "trade" ? "executar_troca" : "executar_dispensa";
     setBusyId(tx.id);
     setResult(null);
-    const { data, error } = await callRpc(fn, { _tx_id: tx.id });
+    const args: Record<string, unknown> = { _tx_id: tx.id };
+    if (tx.type === "ir") {
+      // o admin decide se a solicitação é válida e pode ajustar o tipo ao executar
+      const t = irTypeChoice[tx.id] ?? tx.ir_type;
+      if (t) args._ir_type = t;
+    }
+    const { data, error } = await callRpc(fn, args);
     setBusyId(null);
     if (error) setResult({ ok: false, message: error.message });
     else {
@@ -542,6 +556,11 @@ function AdminMercadoPage() {
         <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {TX_TYPE_LABEL[t.type] ?? t.type}
         </span>
+        {t.type === "ir" && irTypeLabel(t.ir_type) && (
+          <span className="inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            {irTypeLabel(t.ir_type)}
+          </span>
+        )}
         {t.type === "trade" ? (
           <span>{t.proposerName ? `Proposta de ${t.proposerName}` : "Troca"}</span>
         ) : (
@@ -698,9 +717,24 @@ function AdminMercadoPage() {
                     className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
                   >
                     <TxMeta t={t} />
-                    <Button size="sm" onClick={() => void executar(t)} disabled={busyId === t.id}>
-                      {busyId === t.id ? "Executando..." : EXEC_LABEL[t.type] ?? "Executar"}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {t.type === "ir" && (
+                        <select
+                          aria-label="Tipo de IR"
+                          value={irTypeChoice[t.id] ?? (t.ir_type as IrType | null) ?? "partial"}
+                          onChange={(e) =>
+                            setIrTypeChoice((m) => ({ ...m, [t.id]: e.target.value as IrType }))
+                          }
+                          className="h-9 rounded-md border border-border bg-card px-2 text-sm"
+                        >
+                          <option value="partial">{IR_TYPE_LABEL.partial}</option>
+                          <option value="out_of_season">{IR_TYPE_LABEL.out_of_season}</option>
+                        </select>
+                      )}
+                      <Button size="sm" onClick={() => void executar(t)} disabled={busyId === t.id}>
+                        {busyId === t.id ? "Executando..." : EXEC_LABEL[t.type] ?? "Executar"}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -713,8 +747,10 @@ function AdminMercadoPage() {
               Jogadores em IR{irRows.length > 0 ? ` (${irRows.length})` : ""}
             </h2>
             <p className="mb-3 text-xs text-muted-foreground">
-              A reativação só é permitida a partir da temporada seguinte à do IR. "Forçar" fura cap
-              e vaga (override).
+              IR parcial: pode voltar a qualquer momento, se houver vaga (com 15 ativos, o time
+              precisa dispensar ou trocar alguém antes); o cap não muda. IR fora da temporada: só a
+              partir da temporada seguinte, e o salário volta a contar 100%. "Forçar" fura cap e
+              vaga (override).
             </p>
             {irRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum jogador em IR.</p>
@@ -732,6 +768,7 @@ function AdminMercadoPage() {
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {r.teamName ?? "—"}
                           {r.position ? ` · ${r.position}` : ""}
+                          {irTypeLabel(r.irType) ? ` · ${irTypeLabel(r.irType)}` : ""}
                           {r.irSince != null ? ` · em IR desde ${r.irSince}` : ""}
                         </div>
                       </div>

@@ -10,10 +10,15 @@ import {
   fetchMarketOpen,
   TX_TYPE_LABEL,
   TX_STATUS_LABEL,
+  IR_TYPE_LABEL,
+  IR_TYPE_RULE,
+  irCapSalary,
+  irTypeLabel,
   statusTone,
   groupTradeByDirection,
   type CurrentSeason,
   type ContractYear,
+  type IrType,
 } from "@/lib/market";
 import { MarketStateBanner } from "@/components/MarketStateBanner";
 import { Button } from "@/components/ui/button";
@@ -58,6 +63,8 @@ type IrPlayer = {
   name: string;
   position: string | null;
   irSince: number | null;
+  irType: string | null;
+  capSalary: number;
 };
 
 type MyTx = {
@@ -100,6 +107,7 @@ function MercadoPage() {
 
   const [relTarget, setRelTarget] = useState<RosterPlayer | null>(null);
   const [irTarget, setIrTarget] = useState<RosterPlayer | null>(null);
+  const [irChoice, setIrChoice] = useState<IrType | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyTrade, setBusyTrade] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -234,7 +242,7 @@ function MercadoPage() {
 
       const reRes = await db
         .from("roster_entries")
-        .select("id, player_id, position, status, ir_since_season, player:players(full_name)")
+        .select("id, player_id, position, status, ir_since_season, ir_type, player:players(full_name)")
         .eq("team_id", teamId)
         .eq("season", cur.start_year)
         .in("status", ["active", "injured_reserve"]);
@@ -245,19 +253,21 @@ function MercadoPage() {
         position: string | null;
         status: string;
         ir_since_season: number | null;
+        ir_type: string | null;
         player: { full_name: string } | null;
       }[];
 
       const activeEntries = entries.filter((e) => e.status === "active");
       const irEntries = entries.filter((e) => e.status === "injured_reserve");
 
-      const activeIds = activeEntries.map((e) => e.id);
+      // contratos de todos (ativos e IR): o IR também mostra quanto do salário conta no cap
+      const allIds = entries.map((e) => e.id);
       let cy: { roster_entry_id: string; season_label: string; salary: number }[] = [];
-      if (activeIds.length > 0) {
+      if (allIds.length > 0) {
         const cyRes = await db
           .from("roster_contract_years")
           .select("roster_entry_id, season_label, salary")
-          .in("roster_entry_id", activeIds);
+          .in("roster_entry_id", allIds);
         if (cyRes.error) throw new Error(cyRes.error.message);
         cy = (cyRes.data ?? []) as typeof cy;
       }
@@ -287,13 +297,19 @@ function MercadoPage() {
 
       setIrList(
         irEntries
-          .map((e) => ({
-            entryId: e.id,
-            playerId: e.player_id,
-            name: e.player?.full_name ?? "—",
-            position: e.position,
-            irSince: e.ir_since_season,
-          }))
+          .map((e) => {
+            const sal =
+              cy.find((c) => c.roster_entry_id === e.id && c.season_label === cur.label)?.salary ?? 0;
+            return {
+              entryId: e.id,
+              playerId: e.player_id,
+              name: e.player?.full_name ?? "—",
+              position: e.position,
+              irSince: e.ir_since_season,
+              irType: e.ir_type,
+              capSalary: irCapSalary(sal, e.ir_type),
+            };
+          })
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
 
@@ -370,12 +386,16 @@ function MercadoPage() {
   }
 
   async function confirmarIr() {
-    if (!irTarget) return;
+    if (!irTarget || !irChoice) return;
     setSubmitting(true);
     setResult(null);
-    const { error } = await callRpc("solicitar_ir", { _player_id: irTarget.playerId });
+    const { error } = await callRpc("solicitar_ir", {
+      _player_id: irTarget.playerId,
+      _ir_type: irChoice,
+    });
     setSubmitting(false);
     setIrTarget(null);
+    setIrChoice(null);
     if (error) setResult({ ok: false, message: error.message });
     else {
       setResult({ ok: true, message: "IR solicitado. Agora aguarda a aprovação do admin." });
@@ -636,6 +656,7 @@ function MercadoPage() {
                                   size="sm"
                                   onClick={() => {
                                     setResult(null);
+                                    setIrChoice(null);
                                     setIrTarget(p);
                                   }}
                                 >
@@ -670,6 +691,8 @@ function MercadoPage() {
                       <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                         <th className="px-4 py-3 text-left">Jogador</th>
                         <th className="px-4 py-3 text-left">Pos</th>
+                        <th className="px-4 py-3 text-left">Tipo</th>
+                        <th className="px-3 py-3 text-right">No cap {season?.label}</th>
                         <th className="px-4 py-3 text-left">Em IR desde</th>
                       </tr>
                     </thead>
@@ -684,6 +707,12 @@ function MercadoPage() {
                         >
                           <td className="px-4 py-2.5 font-medium">{p.name}</td>
                           <td className="px-4 py-2.5 text-muted-foreground">{p.position ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground">
+                            {irTypeLabel(p.irType) ?? "—"}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                            {p.capSalary ? fmtMoney(p.capSalary) : "—"}
+                          </td>
                           <td className="px-4 py-2.5 text-muted-foreground">{p.irSince ?? "—"}</td>
                         </tr>
                       ))}
@@ -691,8 +720,9 @@ function MercadoPage() {
                   </table>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Jogadores em IR não contam cap nem vaga. A reativação é feita pelo admin, só a
-                  partir da temporada seguinte.
+                  Jogador em IR não ocupa vaga. IR parcial: o salário continua contando no cap. IR
+                  fora da temporada: conta só 20% do salário da temporada atual e o retorno é só na
+                  próxima temporada. A reativação é feita pelo admin.
                 </p>
               </>
             )}
@@ -790,19 +820,54 @@ function MercadoPage() {
       </AlertDialog>
 
       {/* Confirmação de IR */}
-      <AlertDialog open={!!irTarget} onOpenChange={(o) => !submitting && !o && setIrTarget(null)}>
+      <AlertDialog
+        open={!!irTarget}
+        onOpenChange={(o) => {
+          if (!submitting && !o) {
+            setIrTarget(null);
+            setIrChoice(null);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Pôr {irTarget?.name} em IR?</AlertDialogTitle>
             <AlertDialogDescription>
-              Enquanto estiver na reserva de lesionados, o jogador não conta cap nem vaga. A
-              proposta vai pra fila do admin, e o retorno é feito pelo admin só a partir da próxima
-              temporada.
+              Escolha o tipo de IR. A proposta vai para a fila do admin, que decide se o pedido é
+              válido.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            {(["partial", "out_of_season"] as IrType[]).map((t) => (
+              <label
+                key={t}
+                className={cn(
+                  "flex cursor-pointer gap-3 rounded-md border p-3 text-sm transition-colors",
+                  irChoice === t
+                    ? "border-[color:var(--court)] bg-muted/40"
+                    : "border-border hover:bg-muted/30",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="ir-type"
+                  value={t}
+                  checked={irChoice === t}
+                  onChange={() => setIrChoice(t)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block font-medium">{IR_TYPE_LABEL[t]}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {IR_TYPE_RULE[t]}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
-            <Button onClick={() => void confirmarIr()} disabled={submitting}>
+            <Button onClick={() => void confirmarIr()} disabled={submitting || !irChoice}>
               {submitting ? "Enviando..." : "Solicitar IR"}
             </Button>
           </AlertDialogFooter>
