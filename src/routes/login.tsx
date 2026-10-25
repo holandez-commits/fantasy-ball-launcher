@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -78,6 +78,14 @@ function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <div className="text-right">
+            <Link
+              to="/esqueci-senha"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Esqueci minha senha
+            </Link>
+          </div>
         </div>
         {error && (
           <Alert variant="destructive">
@@ -90,7 +98,8 @@ function LoginPage() {
       </form>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        Acesso com e-mail e senha. Perdeu a senha? Fale com um admin da liga.
+        Acesso com e-mail e senha. Se não conseguir entrar, use "Esqueci minha senha" ou fale com um
+        admin da liga.
       </p>
     </div>
   );

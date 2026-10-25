@@ -159,6 +159,10 @@ export function useRequireAuth(opts: { role?: "admin" | "gm" } = {}) {
 
   useEffect(() => {
     if (auth.loading || auth.user) return;
+    // Durante a transição para /login a página protegida ainda está montada e já enxerga
+    // o novo pathname; sem esta guarda ela redirecionava para /login de novo, em loop
+    // (/login?redirect=%2Flogin%3Fredirect=...).
+    if (pathname === "/login" || pathname.startsWith("/login/")) return;
     navigate({ to: "/login", search: { redirect: pathname + searchStr }, replace: true });
   }, [auth.loading, auth.user, navigate, pathname, searchStr]);
 

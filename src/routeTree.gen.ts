@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrocarRouteImport } from './routes/trocar'
 import { Route as RegrasRouteImport } from './routes/regras'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as RecordesRouteImport } from './routes/recordes'
 import { Route as NoticiasRouteImport } from './routes/noticias'
 import { Route as MovimentacoesRouteImport } from './routes/movimentacoes'
@@ -21,6 +22,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeilaoRouteImport } from './routes/leilao'
 import { Route as GmsRouteImport } from './routes/gms'
 import { Route as FreeAgentsRouteImport } from './routes/free-agents'
+import { Route as EsqueciSenhaRouteImport } from './routes/esqueci-senha'
 import { Route as EscalarRouteImport } from './routes/escalar'
 import { Route as EscalacoesRouteImport } from './routes/escalacoes'
 import { Route as ElencosRouteImport } from './routes/elencos'
@@ -43,6 +45,11 @@ const TrocarRoute = TrocarRouteImport.update({
 const RegrasRoute = RegrasRouteImport.update({
   id: '/regras',
   path: '/regras',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecordesRoute = RecordesRouteImport.update({
@@ -93,6 +100,11 @@ const GmsRoute = GmsRouteImport.update({
 const FreeAgentsRoute = FreeAgentsRouteImport.update({
   id: '/free-agents',
   path: '/free-agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EsqueciSenhaRoute = EsqueciSenhaRouteImport.update({
+  id: '/esqueci-senha',
+  path: '/esqueci-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EscalarRoute = EscalarRouteImport.update({
@@ -169,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
   '/escalar': typeof EscalarRoute
+  '/esqueci-senha': typeof EsqueciSenhaRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
   '/leilao': typeof LeilaoRoute
@@ -179,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
   '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
@@ -196,6 +210,7 @@ export interface FileRoutesByTo {
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
   '/escalar': typeof EscalarRoute
+  '/esqueci-senha': typeof EsqueciSenhaRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
   '/leilao': typeof LeilaoRoute
@@ -206,6 +221,7 @@ export interface FileRoutesByTo {
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
   '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
@@ -224,6 +240,7 @@ export interface FileRoutesById {
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
   '/escalar': typeof EscalarRoute
+  '/esqueci-senha': typeof EsqueciSenhaRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
   '/leilao': typeof LeilaoRoute
@@ -234,6 +251,7 @@ export interface FileRoutesById {
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
   '/recordes': typeof RecordesRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
   '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
@@ -253,6 +271,7 @@ export interface FileRouteTypes {
     | '/elencos'
     | '/escalacoes'
     | '/escalar'
+    | '/esqueci-senha'
     | '/free-agents'
     | '/gms'
     | '/leilao'
@@ -263,6 +282,7 @@ export interface FileRouteTypes {
     | '/movimentacoes'
     | '/noticias'
     | '/recordes'
+    | '/redefinir-senha'
     | '/regras'
     | '/trocar'
     | '/admin/consolidar-lock'
@@ -280,6 +300,7 @@ export interface FileRouteTypes {
     | '/elencos'
     | '/escalacoes'
     | '/escalar'
+    | '/esqueci-senha'
     | '/free-agents'
     | '/gms'
     | '/leilao'
@@ -290,6 +311,7 @@ export interface FileRouteTypes {
     | '/movimentacoes'
     | '/noticias'
     | '/recordes'
+    | '/redefinir-senha'
     | '/regras'
     | '/trocar'
     | '/admin/consolidar-lock'
@@ -307,6 +329,7 @@ export interface FileRouteTypes {
     | '/elencos'
     | '/escalacoes'
     | '/escalar'
+    | '/esqueci-senha'
     | '/free-agents'
     | '/gms'
     | '/leilao'
@@ -317,6 +340,7 @@ export interface FileRouteTypes {
     | '/movimentacoes'
     | '/noticias'
     | '/recordes'
+    | '/redefinir-senha'
     | '/regras'
     | '/trocar'
     | '/admin/consolidar-lock'
@@ -335,6 +359,7 @@ export interface RootRouteChildren {
   ElencosRoute: typeof ElencosRoute
   EscalacoesRoute: typeof EscalacoesRoute
   EscalarRoute: typeof EscalarRoute
+  EsqueciSenhaRoute: typeof EsqueciSenhaRoute
   FreeAgentsRoute: typeof FreeAgentsRoute
   GmsRoute: typeof GmsRoute
   LeilaoRoute: typeof LeilaoRoute
@@ -345,6 +370,7 @@ export interface RootRouteChildren {
   MovimentacoesRoute: typeof MovimentacoesRoute
   NoticiasRoute: typeof NoticiasRoute
   RecordesRoute: typeof RecordesRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   RegrasRoute: typeof RegrasRoute
   TrocarRoute: typeof TrocarRoute
   AdminConsolidarLockRoute: typeof AdminConsolidarLockRoute
@@ -369,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/regras'
       fullPath: '/regras'
       preLoaderRoute: typeof RegrasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recordes': {
@@ -439,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/free-agents'
       fullPath: '/free-agents'
       preLoaderRoute: typeof FreeAgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/esqueci-senha': {
+      id: '/esqueci-senha'
+      path: '/esqueci-senha'
+      fullPath: '/esqueci-senha'
+      preLoaderRoute: typeof EsqueciSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/escalar': {
@@ -543,6 +583,7 @@ const rootRouteChildren: RootRouteChildren = {
   ElencosRoute: ElencosRoute,
   EscalacoesRoute: EscalacoesRoute,
   EscalarRoute: EscalarRoute,
+  EsqueciSenhaRoute: EsqueciSenhaRoute,
   FreeAgentsRoute: FreeAgentsRoute,
   GmsRoute: GmsRoute,
   LeilaoRoute: LeilaoRoute,
@@ -553,6 +594,7 @@ const rootRouteChildren: RootRouteChildren = {
   MovimentacoesRoute: MovimentacoesRoute,
   NoticiasRoute: NoticiasRoute,
   RecordesRoute: RecordesRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
   RegrasRoute: RegrasRoute,
   TrocarRoute: TrocarRoute,
   AdminConsolidarLockRoute: AdminConsolidarLockRoute,

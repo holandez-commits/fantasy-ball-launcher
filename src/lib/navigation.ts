@@ -6,7 +6,6 @@ import {
   BarChart3,
   Award,
   BookText,
-  Newspaper,
   Gavel,
   UserPlus,
   UserCog,
@@ -83,18 +82,6 @@ export const navSections: NavSection[] = [
     items: [
       { to: "/recordes", label: "Recordes", icon: Award, desc: "Marcas históricas" },
       { to: "/medias", label: "Médias", icon: BarChart3, desc: "Médias dos jogadores" },
-    ],
-  },
-  {
-    id: "conteudo",
-    label: "Conteúdo",
-    items: [
-      {
-        to: "/noticias",
-        label: "Notícias",
-        icon: Newspaper,
-        desc: "Narrativas e crônicas dos jogos",
-      },
     ],
   },
 ];
