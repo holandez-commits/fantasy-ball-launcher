@@ -65,9 +65,9 @@ function LeilaoPage() {
       setSeason(cur);
       setMarketOpen(await fetchMarketOpen(cur.id));
 
-      // semana do leilão = foto mais recente (maior week_number em weekly_rosters)
+      // semana do leilão = semana travada mais recente (maior week_number em roster_locks)
       const wkRes = await db
-        .from("weekly_rosters")
+        .from("roster_locks")
         .select("week_number")
         .eq("season_id", cur.id)
         .order("week_number", { ascending: false })
@@ -76,7 +76,7 @@ function LeilaoPage() {
       setWeek(wk);
       if (wk == null) {
         setLoading(false);
-        return; // sem foto -> nada a leiloar
+        return; // sem semana travada -> nada a leiloar
       }
 
       // cap disponível do meu time
@@ -84,18 +84,14 @@ function LeilaoPage() {
       const capRows = (capRes.data ?? []) as { team_id: string; available: number }[];
       setCapAvail(capRows.find((c) => c.team_id === teamId)?.available ?? null);
 
-      // pool de FA = players que NÃO estão na foto da semana
-      const fotoRes = await db
-        .from("weekly_rosters")
-        .select("player_id")
-        .eq("season_id", cur.id)
-        .eq("week_number", wk);
-      const inFoto = new Set(
-        ((fotoRes.data ?? []) as { player_id: string }[]).map((r) => r.player_id),
+      // pool de FA = players fora de qualquer elenco da temporada (elenco ao vivo)
+      const rosterRes = await db.from("roster_entries").select("player_id").eq("season", cur.start_year);
+      const inRoster = new Set(
+        ((rosterRes.data ?? []) as { player_id: string }[]).map((r) => r.player_id),
       );
       const plRes = await db.from("players").select("id, full_name").order("full_name");
       const pool = ((plRes.data ?? []) as { id: string; full_name: string }[])
-        .filter((p) => !inFoto.has(p.id))
+        .filter((p) => !inRoster.has(p.id))
         .map((p) => ({ playerId: p.id, name: p.full_name }));
       setFas(pool);
 
@@ -231,7 +227,7 @@ function LeilaoPage() {
       ) : week == null ? (
         <Alert className="mt-8">
           <AlertDescription>
-            A foto da semana ainda não foi tirada — sem ela o pool de free agents não existe.
+            Nenhuma semana foi travada ainda — o leilão usa a semana travada mais recente.
           </AlertDescription>
         </Alert>
       ) : (

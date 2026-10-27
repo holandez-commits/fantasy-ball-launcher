@@ -152,13 +152,22 @@ function EscalarPage() {
           return;
         }
 
+        // Elenco AO VIVO (roster_entries): vale tudo o que mudou até o prazo do lock — é a mesma
+        // regra que o banco usa pra validar o slot. (Antes lia a foto weekly_rosters.)
+        const seasonRes = await db
+          .from("seasons")
+          .select("start_year")
+          .eq("id", cur.season_id)
+          .limit(1);
+        if (seasonRes.error) throw new Error(seasonRes.error.message);
+        const startYear = (seasonRes.data as { start_year: number }[])[0]?.start_year;
         const [rosterRes, gamesRes] = await Promise.all([
           db
-            .from("weekly_rosters")
+            .from("roster_entries")
             .select("player_id, position, status")
             .eq("team_id", teamId)
-            .eq("season_id", cur.season_id)
-            .eq("week_number", cur.week_number),
+            .eq("season", startYear)
+            .not("position", "is", null),
           db
             .from("games")
             .select("id")
@@ -223,7 +232,7 @@ function EscalarPage() {
             if (differs)
               parts.push("Seus jogos da semana têm escalações diferentes; estamos mostrando a do primeiro. Salvar pode sobrescrevê-las.");
             if (dropped > 0)
-              parts.push(`${dropped} slot(s) removido(s) da visualização: o jogador não está mais ativo no retrato.`);
+              parts.push(`${dropped} slot(s) removido(s) da visualização: o jogador não está mais ativo no elenco.`);
             msg = parts.length ? parts.join(" ") : null;
           }
         }
@@ -287,7 +296,7 @@ function EscalarPage() {
         const pid = selection[slotKey(pos.id, type)];
         if (!pid) continue;
         const player = activePlayers.find((p) => p.player_id === pid);
-        if (!player) return { slots, error: `${nameOf(pid)} não está ativo no seu retrato desta semana.` };
+        if (!player) return { slots, error: `${nameOf(pid)} não está ativo no seu elenco.` };
         if (!fits(pos, player))
           return { slots, error: `${nameOf(pid)} não joga na posição ${pos.code}.` };
         if (type === "titular") {

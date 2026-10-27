@@ -101,9 +101,9 @@ export const gmItems: NavItem[] = [
 export const adminItems: NavItem[] = [
   {
     to: "/admin/fechar-semana",
-    label: "Travar semana / Foto",
+    label: "Travar semana",
     icon: Lock,
-    desc: "Travar escalações e tirar a foto do elenco",
+    desc: "Definir o prazo de escalação da semana",
   },
   {
     to: "/admin/consolidar-lock",

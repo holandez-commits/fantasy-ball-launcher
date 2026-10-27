@@ -175,9 +175,9 @@ function AdminMercadoPage() {
         })),
       );
 
-      // semana do leilão/consolidação = foto mais recente
+      // semana do leilão/consolidação = semana travada mais recente (roster_locks)
       const wkRes = await db
-        .from("weekly_rosters")
+        .from("roster_locks")
         .select("week_number")
         .eq("season_id", cur.id)
         .order("week_number", { ascending: false })
@@ -209,7 +209,7 @@ function AdminMercadoPage() {
         pickIds.length
           ? db
               .from("draft_picks")
-              .select("id, round, season:seasons!draft_picks_draft_season_id_fkey(label)")
+              .select("id, round, season:seasons!draft_picks_draft_season_id_fkey(label), original_team:teams!draft_picks_original_team_id_fkey(name)")
               .in("id", pickIds)
           : { data: [] },
       ]);
@@ -227,8 +227,16 @@ function AdminMercadoPage() {
       );
       const pickLabel = Object.fromEntries(
         (
-          (picksRes.data ?? []) as { id: string; round: number; season: { label: string } | null }[]
-        ).map((p) => [p.id, `Pick ${p.round}ª · ${p.season?.label ?? "—"}`]),
+          (picksRes.data ?? []) as {
+            id: string;
+            round: number;
+            season: { label: string } | null;
+            original_team: { name: string } | null;
+          }[]
+        ).map((p) => [
+          p.id,
+          `Pick ${p.round}ª · ${p.season?.label ?? "—"} · de ${p.original_team?.name ?? "—"}`,
+        ]),
       );
 
       const releasePlayerItems = items.filter(
@@ -500,7 +508,7 @@ function AdminMercadoPage() {
 
   async function verPreviaCons() {
     if (leilaoWeek == null) {
-      setResult({ ok: false, message: "Sem foto de semana pra prévia do leilão." });
+      setResult({ ok: false, message: "Nenhuma semana travada pra prévia do leilão." });
       return;
     }
     setBusyId("prev-cons");
@@ -523,7 +531,7 @@ function AdminMercadoPage() {
 
   async function commitCons() {
     if (leilaoWeek == null) {
-      setResult({ ok: false, message: "Sem foto de semana." });
+      setResult({ ok: false, message: "Nenhuma semana travada." });
       return;
     }
     setBusyId("commit-cons");
@@ -803,7 +811,7 @@ function AdminMercadoPage() {
             </h2>
             {leilaoWeek == null ? (
               <p className="text-sm text-muted-foreground">
-                Sem foto de semana (`weekly_rosters`) — leilão indisponível.
+                Nenhuma semana travada (`roster_locks`) — leilão indisponível.
               </p>
             ) : (
               <>

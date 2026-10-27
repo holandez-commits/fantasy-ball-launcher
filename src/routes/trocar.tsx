@@ -27,12 +27,19 @@ export const Route = createFileRoute("/trocar")({
   component: TrocarPage,
 });
 
-const PENALTY_MIN = 250_000;
+const PENALTY_MIN = 50_000;
 
 type TeamLite = { id: string; name: string };
 type PlayerAsset = { kind: "player"; id: string; name: string; position: string | null; salary: number };
-type PickAsset = { kind: "pick"; id: string; label: string; viaTeam: string | null };
-type PenaltyAsset = { kind: "penalty"; id: string; label: string; saldo: number };
+type PickAsset = { kind: "pick"; id: string; label: string; origin: string | null };
+// Multa consolidada por ano: id = "<time>|<ano>" (único entre os times da troca); parts = linhas reais de team_penalties que a compõem.
+type PenaltyAsset = {
+  kind: "penalty";
+  id: string;
+  label: string;
+  saldo: number;
+  parts: { id: string; amount: number }[];
+};
 type Asset = PlayerAsset | PickAsset | PenaltyAsset;
 type TeamAssets = { players: PlayerAsset[]; picks: PickAsset[]; penalties: PenaltyAsset[] };
 
@@ -103,28 +110,36 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
       kind: "pick" as const,
       id: p.id,
       label: `Pick ${p.round}ª · ${p.season?.label ?? "—"}`,
-      viaTeam: p.original_team_id !== teamId ? p.original_team?.name ?? null : null,
+      origin: p.original_team?.name ?? null,
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  // multas com saldo (fatias negociáveis)
+  // multas com saldo — consolidadas: uma linha por ano (soma de todas as linhas daquele ano)
   const penRes = await db
     .from("team_penalties")
-    .select("id, amount, season:seasons(label)")
+    .select("id, amount, season:seasons(label, start_year)")
     .eq("team_id", teamId)
     .gt("amount", 0);
-  const penalties: PenaltyAsset[] = ((penRes.data ?? []) as {
+  const byYear = new Map<string, { start: number; parts: { id: string; amount: number }[] }>();
+  for (const p of (penRes.data ?? []) as {
     id: string;
     amount: number;
-    season: { label: string } | null;
-  }[])
-    .map((p) => ({
+    season: { label: string; start_year: number } | null;
+  }[]) {
+    const label = p.season?.label ?? "—";
+    const cur = byYear.get(label) ?? { start: p.season?.start_year ?? 9999, parts: [] };
+    cur.parts.push({ id: p.id, amount: p.amount });
+    byYear.set(label, cur);
+  }
+  const penalties: PenaltyAsset[] = [...byYear.entries()]
+    .sort((a, b) => a[1].start - b[1].start)
+    .map(([label, v]) => ({
       kind: "penalty" as const,
-      id: p.id,
-      label: `Multa ${p.season?.label ?? "—"}`,
-      saldo: p.amount,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+      id: `${teamId}|${label}`,
+      label: `Multa ${label}`,
+      saldo: v.parts.reduce((acc, x) => acc + x.amount, 0),
+      parts: [...v.parts].sort((a, b) => b.amount - a.amount),
+    }));
 
   return { players, picks, penalties };
 }
@@ -261,16 +276,32 @@ function TrocarPage() {
       } else {
         const amt = Math.round(Number(sel.amount));
         if (!amt || amt < PENALTY_MIN) {
-          setResult({ ok: false, message: `Fatia de multa mínima é ${fmtMoney(PENALTY_MIN)} (enviado).` });
+          setResult({ ok: false, message: `Multa mínima por ano é ${fmtMoney(PENALTY_MIN)} (enviado).` });
           return;
         }
-        itens.push({
-          asset_type: "penalty",
-          source_penalty_id: id,
-          from_team_id: sel.from,
-          to_team_id: sel.to,
-          amount: amt,
-        });
+        const asset = assetsByTeam[sel.from]?.penalties.find((p) => p.id === id);
+        if (!asset) {
+          setResult({ ok: false, message: "Multa não encontrada. Recarregue a página." });
+          return;
+        }
+        if (amt > asset.saldo) {
+          setResult({ ok: false, message: `${asset.label}: valor acima do saldo (${fmtMoney(asset.saldo)}).` });
+          return;
+        }
+        // reparte o valor do ano entre as linhas de origem (maiores primeiro)
+        let left = amt;
+        for (const part of asset.parts) {
+          if (left <= 0) break;
+          const take = Math.min(part.amount, left);
+          itens.push({
+            asset_type: "penalty",
+            source_penalty_id: part.id,
+            from_team_id: sel.from,
+            to_team_id: sel.to,
+            amount: take,
+          });
+          left -= take;
+        }
       }
     }
     if (itens.length === 0) {
@@ -546,9 +577,9 @@ function TeamPanel({
               p,
               <span>
                 {p.label}
-                {p.viaTeam && (
+                {p.origin && (
                   <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    via {p.viaTeam}
+                    · de {p.origin}
                   </span>
                 )}
               </span>,

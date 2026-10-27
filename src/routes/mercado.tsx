@@ -171,7 +171,7 @@ function MercadoPage() {
       pickIds.length
         ? db
             .from("draft_picks")
-            .select("id, round, season:seasons!draft_picks_draft_season_id_fkey(label)")
+            .select("id, round, season:seasons!draft_picks_draft_season_id_fkey(label), original_team:teams!draft_picks_original_team_id_fkey(name)")
             .in("id", pickIds)
         : { data: [] },
     ]);
@@ -182,9 +182,17 @@ function MercadoPage() {
       ((playersRes.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]),
     );
     const pickLabel = Object.fromEntries(
-      ((picksRes.data ?? []) as { id: string; round: number; season: { label: string } | null }[]).map(
-        (p) => [p.id, `Pick ${p.round}ª · ${p.season?.label ?? "—"}`],
-      ),
+      (
+        (picksRes.data ?? []) as {
+          id: string;
+          round: number;
+          season: { label: string } | null;
+          original_team: { name: string } | null;
+        }[]
+      ).map((p) => [
+        p.id,
+        `Pick ${p.round}ª · ${p.season?.label ?? "—"} · de ${p.original_team?.name ?? "—"}`,
+      ]),
     );
 
     const views: TradeView[] = trs.flatMap((t) => {

@@ -239,7 +239,7 @@ function CalendarioPage() {
       .order("week_number", { ascending: true })
       .order("game_number_in_week", { ascending: true })
       .then(({ data }) => {
-        setGames((data as GameRow[]) ?? []);
+        setGames((data as unknown as GameRow[]) ?? []);
         setLoadingGames(false);
       });
   }, [seasonId]);

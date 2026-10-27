@@ -172,10 +172,15 @@ function GamesSection({
     return weeks.map((w) => ({ value: w, label: `Semana ${w}` }));
   }, [weeksIndex, selectedSeasonId]);
 
-  // Quando muda de temporada, vai para a primeira semana dessa temporada
+  // Quando muda de temporada, vai para a primeira semana dessa temporada;
+  // na temporada atual (a da abertura da página) vale a semana atual (defaultWeek).
   useEffect(() => {
     if (weekOptions.length > 0) {
-      setSelectedWeek(weekOptions[0].value);
+      const useDefault =
+        selectedSeasonId === defaultSeasonId &&
+        defaultWeek != null &&
+        weekOptions.some((o) => o.value === defaultWeek);
+      setSelectedWeek(useDefault ? defaultWeek : weekOptions[0].value);
     }
   }, [selectedSeasonId]);
 
@@ -420,13 +425,28 @@ function HomePage() {
       const weeks = (weeksData ?? []) as WeekEntry[];
       setWeeksIndex(weeks);
 
-      // Default week: primeira semana da temporada atual
+      // Default week: semana atual = a primeira semana da temporada com algum jogo ainda não
+      // finalizado (hoje, a Semana 2). Se tudo estiver finalizado, a última; sem nada, a primeira.
       const currentWeeks = weeks
         .filter((w) => w.season_id === current.id)
         .map((w) => w.week_number)
         .sort((a, b) => a - b);
-      const firstWeek = currentWeeks[0] ?? null;
-      setDefaultWeek(firstWeek);
+      const { data: openGame } = await supabase
+        .from("games")
+        .select("week_number")
+        .eq("season_id", current.id)
+        .eq("is_playoff", false)
+        .neq("status" as "id", "final")
+        .order("week_number", { ascending: true })
+        .limit(1);
+      const openWeek = (openGame as { week_number: number | null }[] | null)?.[0]?.week_number ?? null;
+      const currentWeek =
+        openWeek != null && currentWeeks.includes(openWeek)
+          ? openWeek
+          : currentWeeks.length > 0
+            ? currentWeeks[currentWeeks.length - 1]
+            : null;
+      setDefaultWeek(currentWeek);
 
       setLoading(false);
     })();

@@ -277,6 +277,7 @@ function RosterTable({
       <table className="w-full min-w-[760px] text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <th className="w-10 px-3 py-3 text-right">#</th>
             <th className="px-4 py-3 text-left">Jogador</th>
             <th className="px-4 py-3 text-left">Pos</th>
             {CONTRACT_YEARS.map((y) => (
@@ -299,6 +300,9 @@ function RosterTable({
                   isInjured ? "opacity-50" : ""
                 )}
               >
+                <td className="px-3 py-2.5 text-right text-xs tabular-nums text-muted-foreground">
+                  {isInjured ? "—" : i + 1}
+                </td>
                 <td className="px-4 py-2.5">
                   {entry.player?.espn_id ? (
                     <a
@@ -346,7 +350,7 @@ function RosterTable({
         {/* Rodapé com totais */}
         <tfoot>
           <tr className="border-t-2 border-border bg-muted/20 font-semibold">
-            <td className="px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground" colSpan={2}>Total elenco</td>
+            <td className="px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground" colSpan={3}>Total elenco</td>
             {CONTRACT_YEARS.map((y) => (
               <td key={y} className="px-3 py-2.5 text-right tabular-nums">
                 {totals[y] > 0 ? fmtSalary(totals[y]) : "—"}
@@ -355,7 +359,7 @@ function RosterTable({
           </tr>
           {hasPenalties && (
             <tr className="border-t border-border/60 bg-muted/10 text-amber-600 dark:text-amber-400">
-              <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={2}>Multas</td>
+              <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={3}>Multas</td>
               {CONTRACT_YEARS.map((y) => (
                 <td key={y} className="px-3 py-2.5 text-right tabular-nums">
                   {fmtSalaryFull(penaltiesByYear[y] ?? 0)}
@@ -369,7 +373,7 @@ function RosterTable({
               ? "text-emerald-600 dark:text-emerald-400"
               : "text-red-600 dark:text-red-400"
           )}>
-            <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={2}>Cap disponível</td>
+            <td className="px-4 py-2.5 text-xs uppercase tracking-wide" colSpan={3}>Cap disponível</td>
             {CONTRACT_YEARS.map((y, i) => {
               const yearSalary = totals[y] ?? 0;
               const yearPenalty = penaltiesByYear[y] ?? 0;
@@ -383,7 +387,7 @@ function RosterTable({
           </tr>
           {hasPicks && (
             <tr className="border-t border-border/60 align-top">
-              <td className="px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground" colSpan={2}>
+              <td className="px-4 py-2.5 text-xs uppercase tracking-wide text-muted-foreground" colSpan={3}>
                 Draft
               </td>
               {CONTRACT_YEARS.map((y) => (

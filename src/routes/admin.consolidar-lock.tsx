@@ -34,6 +34,81 @@ export const Route = createFileRoute("/admin/consolidar-lock")({
 
 type SeasonOpt = { id: string; label: string; start_year: number; is_current: boolean };
 type LockRow = { season_id: string; week_number: number; locks_at: string };
+type TeamResult = {
+  team: string;
+  jogos: number;
+  copiados: number;
+  buracos: number;
+  sem_modelo: boolean;
+  detalhe: { jogador: string; posicao: string | null; slot: string }[];
+};
+type Plan = { dry: boolean; teams: TeamResult[] };
+
+function holesText(t: TeamResult) {
+  const uniq = [...new Set(t.detalhe.map((d) => `${d.jogador}${d.posicao ? ` (${d.posicao})` : ""}`))];
+  return uniq.join(", ");
+}
+
+/** Lista por time: quem será/foi preenchido, onde há buraco e quem não tem escalação anterior. */
+function PlanView({ plan, done }: { plan: Plan; done: boolean }) {
+  const filled = plan.teams.filter((t) => !t.sem_modelo);
+  const semModelo = plan.teams.filter((t) => t.sem_modelo);
+  const comBuraco = filled.filter((t) => t.buracos > 0);
+  return (
+    <div className="space-y-3 text-sm">
+      <div>
+        <p className="font-medium">
+          {done ? "Times copiados" : "Times que serão preenchidos"} ({filled.length})
+        </p>
+        {filled.length === 0 ? (
+          <p className="text-muted-foreground">Nenhum.</p>
+        ) : (
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {filled.map((t) => (
+              <li key={t.team}>
+                {t.team}{" "}
+                <span className="text-muted-foreground">
+                  — {t.jogos} {t.jogos === 1 ? "jogo" : "jogos"}, {t.copiados} slots
+                  {t.buracos > 0 ? `, ${t.buracos} ${t.buracos === 1 ? "buraco" : "buracos"}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <p className="font-medium">{done ? "Buracos" : "Buracos previstos"}</p>
+        {comBuraco.length === 0 ? (
+          <p className="text-muted-foreground">Nenhum buraco.</p>
+        ) : (
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {comBuraco.map((t) => (
+              <li key={t.team}>
+                <span className="font-medium">{t.team}</span>{" "}
+                <span className="text-muted-foreground">— jogador(es) fora do elenco ao vivo: {holesText(t)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {semModelo.length > 0 && (
+        <div>
+          <p className="font-medium">Sem escalação anterior (ficam vazios) ({semModelo.length})</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {semModelo.map((t) => (
+              <li key={t.team}>
+                {t.team}{" "}
+                <span className="text-muted-foreground">
+                  — {t.jogos} {t.jogos === 1 ? "jogo" : "jogos"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Tipagem frouxa: consolidar_escalacoes_pendentes e roster_locks não estão no types.ts (defasado).
 const callRpc = (fn: string, args?: Record<string, unknown>) =>
@@ -71,6 +146,10 @@ function ConsolidarLockPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [preview, setPreview] = useState<Plan | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [report, setReport] = useState<Plan | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -107,6 +186,31 @@ function ConsolidarLockPage() {
   const expired = !!lock && Date.now() >= new Date(lock.locks_at).getTime();
   const canSubmit = !!season && !!lock && !submitting;
 
+  // Prévia (simulação que não grava): quais times serão preenchidos e onde haverá buraco.
+  useEffect(() => {
+    setPreview(null);
+    setPreviewError(null);
+    if (!season || !lock || !expired) return;
+    let cancelled = false;
+    setPreviewLoading(true);
+    (async () => {
+      const { data, error } = await callRpc("consolidar_escalacoes_pendentes_v2", {
+        _season_id: season.id,
+        _week: lock.week_number,
+        _dry: true,
+      });
+      if (cancelled) return;
+      setPreviewLoading(false);
+      if (error) setPreviewError(friendlyError(error.message));
+      else setPreview(data as Plan);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [season, lock, expired]);
+
+  const nothingPending = !!preview && preview.teams.length === 0;
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
@@ -117,16 +221,27 @@ function ConsolidarLockPage() {
   async function confirm() {
     if (!season || !lock) return;
     setSubmitting(true);
-    const { data, error } = await callRpc("consolidar_escalacoes_pendentes", {
+    const { data, error } = await callRpc("consolidar_escalacoes_pendentes_v2", {
       _season_id: season.id,
       _week: lock.week_number,
+      _dry: false,
     });
     setSubmitting(false);
     setConfirmOpen(false);
     if (error) {
+      setReport(null);
       setResult({ ok: false, message: friendlyError(error.message) });
     } else {
-      setResult({ ok: true, message: typeof data === "string" ? data : "Escalações preenchidas." });
+      const plan = data as Plan;
+      setReport(plan);
+      setPreview({ dry: true, teams: [] });
+      setResult({
+        ok: true,
+        message:
+          plan.teams.length === 0
+            ? "Nenhum time pendente nesta semana."
+            : `${plan.teams.filter((t) => !t.sem_modelo).length} time(s) preenchido(s) por cópia.`,
+      });
     }
   }
 
@@ -148,7 +263,7 @@ function ConsolidarLockPage() {
       <h1 className="mt-1 font-display text-3xl">Preencher escalações pendentes</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Depois do prazo, preenche quem não escalou copiando a última escalação de cada time. Só
-        funciona depois que o prazo da semana vence; jogadores fora do retrato viram buracos.
+        funciona depois que o prazo da semana vence; jogadores que saíram do elenco viram buracos.
       </p>
 
       {loadError && (
@@ -166,6 +281,7 @@ function ConsolidarLockPage() {
               setSeasonId(v);
               setWeek("");
               setResult(null);
+              setReport(null);
             }}
           >
             <SelectTrigger id="season">
@@ -189,6 +305,7 @@ function ConsolidarLockPage() {
             onValueChange={(v) => {
               setWeek(v);
               setResult(null);
+              setReport(null);
             }}
             disabled={seasonLocks.length === 0}
           >
@@ -230,7 +347,20 @@ function ConsolidarLockPage() {
           </Alert>
         )}
 
-        <Button type="submit" disabled={!canSubmit}>
+        {lock && expired && !report && (
+          <div className="rounded-lg border border-border bg-card p-4">
+            <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Prévia (nada foi gravado)</p>
+            {previewLoading && <p className="text-sm text-muted-foreground">Calculando…</p>}
+            {previewError && <p className="text-sm text-destructive">{previewError}</p>}
+            {preview && (nothingPending ? (
+              <p className="text-sm text-muted-foreground">Nenhum time pendente: todos já têm escalação nesta semana.</p>
+            ) : (
+              <PlanView plan={preview} done={false} />
+            ))}
+          </div>
+        )}
+
+        <Button type="submit" disabled={!canSubmit || previewLoading || nothingPending}>
           Preencher escalações pendentes
         </Button>
       </form>
@@ -240,6 +370,11 @@ function ConsolidarLockPage() {
           <AlertTitle>{result.ok ? "Escalações preenchidas" : "Não foi possível preencher"}</AlertTitle>
           <AlertDescription>{result.message}</AlertDescription>
         </Alert>
+      )}
+      {report && report.teams.length > 0 && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-4">
+          <PlanView plan={report} done />
+        </div>
       )}
 
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !submitting && setConfirmOpen(o)}>
@@ -252,6 +387,7 @@ function ConsolidarLockPage() {
               efeito no banco.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {preview && preview.teams.length > 0 && <PlanView plan={preview} done={false} />}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <Button onClick={confirm} disabled={submitting}>
