@@ -25,7 +25,7 @@ export const Route = createFileRoute("/leilao")({
   component: LeilaoPage,
 });
 
-type FA = { playerId: string; name: string };
+type FA = { playerId: string; name: string; isPending: boolean };
 type MyBid = { bidId: string; salaryOffer: number; status: string };
 
 const MIN_BID = 750_000;
@@ -47,6 +47,9 @@ function LeilaoPage() {
   const [myBids, setMyBids] = useState<Record<string, MyBid>>({});
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
+  const [novoNome, setNovoNome] = useState("");
+  const [novoValor, setNovoValor] = useState("");
+  const [novoBusy, setNovoBusy] = useState(false);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -89,10 +92,10 @@ function LeilaoPage() {
       const inRoster = new Set(
         ((rosterRes.data ?? []) as { player_id: string }[]).map((r) => r.player_id),
       );
-      const plRes = await db.from("players").select("id, full_name").order("full_name");
-      const pool = ((plRes.data ?? []) as { id: string; full_name: string }[])
+      const plRes = await db.from("players").select("id, full_name, is_pending").order("full_name");
+      const pool = ((plRes.data ?? []) as { id: string; full_name: string; is_pending: boolean }[])
         .filter((p) => !inRoster.has(p.id))
-        .map((p) => ({ playerId: p.id, name: p.full_name }));
+        .map((p) => ({ playerId: p.id, name: p.full_name, isPending: !!p.is_pending }));
       setFas(pool);
 
       // meus lances da semana
@@ -142,6 +145,34 @@ function LeilaoPage() {
     if (error) setResult({ ok: false, message: error.message });
     else {
       setResult({ ok: true, message: "Lance registrado." });
+      void load();
+    }
+  }
+
+  async function darLanceNovo() {
+    if (week == null) return;
+    const val = Math.round(Number(novoValor));
+    if (!novoNome.trim()) {
+      setResult({ ok: false, message: "Informe o nome do jogador." });
+      return;
+    }
+    if (!val || Number.isNaN(val)) {
+      setResult({ ok: false, message: "Informe um valor de lance." });
+      return;
+    }
+    setNovoBusy(true);
+    setResult(null);
+    const { error } = await callRpc("dar_lance_novo", {
+      _name: novoNome,
+      _salary_offer: val,
+      _week: week,
+    });
+    setNovoBusy(false);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: "Lance registrado. Se o jogador for novo na liga, o admin define a posição na consolidação." });
+      setNovoNome("");
+      setNovoValor("");
       void load();
     }
   }
@@ -251,6 +282,36 @@ function LeilaoPage() {
             />
           </div>
 
+          <div className="mt-4 rounded-lg border border-dashed border-border bg-card px-4 py-3">
+            <p className="text-sm font-medium">Não achou o jogador na lista?</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Dê lance em qualquer nome, mesmo que ele nunca tenha jogado na liga. Se você ganhar, ele entra no
+              seu time na consolidação e o admin define a posição. Escreva o nome completo (ex.: Cooper Flagg).
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Input
+                placeholder="Nome do jogador"
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                className="w-56"
+                maxLength={80}
+              />
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={MIN_BID}
+                step={50000}
+                placeholder={String(MIN_BID)}
+                value={novoValor}
+                onChange={(e) => setNovoValor(e.target.value)}
+                className="w-32"
+              />
+              <Button size="sm" onClick={() => void darLanceNovo()} disabled={novoBusy}>
+                {novoBusy ? "..." : "Dar lance"}
+              </Button>
+            </div>
+          </div>
+
           <div className="mt-4 overflow-hidden rounded-lg border border-border bg-card">
             {filtered.length === 0 ? (
               <p className="px-4 py-6 text-sm text-muted-foreground">
@@ -266,7 +327,14 @@ function LeilaoPage() {
                       key={f.playerId}
                       className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
                     >
-                      <span className="min-w-[160px] flex-1 font-medium">{f.name}</span>
+                      <span className="min-w-[160px] flex-1 font-medium">
+                        {f.name}
+                        {f.isPending && (
+                          <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                            novo na liga
+                          </span>
+                        )}
+                      </span>
                       {bid && (
                         <span
                           className={cn(

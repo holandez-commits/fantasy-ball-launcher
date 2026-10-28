@@ -68,7 +68,19 @@ type IrRow = {
 };
 
 type SigningRow = { entryId: string; name: string; teamName: string | null };
-type PreviaLeilao = { playerName: string; teamName: string; salary: number; position: string | null };
+type PreviaLeilao = {
+  playerId: string;
+  playerName: string;
+  teamName: string;
+  salary: number;
+  position: string | null;
+  /** jogador novo (lance em nome que não estava no banco): admin define nome/posição/ESPN antes de consolidar */
+  isPending: boolean;
+  pendingPosition: string | null;
+  espnId: string | null;
+};
+
+const NOVO_POSICOES = ["PG", "SG", "SF", "PF", "C", "PG/SG", "SG/SF", "SF/PF", "PF/C"];
 type PreviaCons = { fase: string; detalhe: string };
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -96,6 +108,7 @@ function AdminMercadoPage() {
   const [signings, setSignings] = useState<SigningRow[]>([]);
   const [posInputs, setPosInputs] = useState<Record<string, string>>({});
   const [prevLeilao, setPrevLeilao] = useState<PreviaLeilao[] | null>(null);
+  const [novoEdits, setNovoEdits] = useState<Record<string, { name?: string; pos?: string; espn?: string }>>({});
   const [prevCons, setPrevCons] = useState<PreviaCons[] | null>(null);
 
   const [toggling, setToggling] = useState(false);
@@ -458,15 +471,73 @@ function AdminMercadoPage() {
         if (e.position && !(e.player_id in posByPlayer)) posByPlayer[e.player_id] = e.position;
       }
     }
+    // jogadores novos (pendentes): nome "oficial" + posição/ESPN já definidos
+    const pendById: Record<
+      string,
+      { full_name: string; is_pending: boolean; pending_position: string | null; espn_id: string | null }
+    > = {};
+    if (ids.length > 0) {
+      const plRes = await db
+        .from("players")
+        .select("id, full_name, is_pending, pending_position, espn_id")
+        .in("id", ids);
+      for (const p of (plRes.data ?? []) as {
+        id: string;
+        full_name: string;
+        is_pending: boolean;
+        pending_position: string | null;
+        espn_id: string | null;
+      }[]) {
+        pendById[p.id] = p;
+      }
+    }
     setBusyId(null);
     setPrevLeilao(
-      rows.map((r) => ({
-        playerName: r.player_name,
-        teamName: r.team_name,
-        salary: r.salary_offer,
-        position: posByPlayer[r.player_id] ?? null,
-      })),
+      rows.map((r) => {
+        const pl = pendById[r.player_id];
+        return {
+          playerId: r.player_id,
+          playerName: pl?.full_name ?? r.player_name,
+          teamName: r.team_name,
+          salary: r.salary_offer,
+          position: pl?.is_pending ? (pl.pending_position ?? null) : (posByPlayer[r.player_id] ?? null),
+          isPending: !!pl?.is_pending,
+          pendingPosition: pl?.pending_position ?? null,
+          espnId: pl?.espn_id ?? null,
+        };
+      }),
     );
+  }
+
+  async function salvarNovo(r: PreviaLeilao) {
+    const ed = novoEdits[r.playerId] ?? {};
+    const name = (ed.name ?? r.playerName).trim();
+    const pos = ed.pos ?? r.pendingPosition ?? "";
+    const espn = ed.espn ?? r.espnId ?? "";
+    if (!pos) {
+      setResult({ ok: false, message: `Escolha a posição de ${name}.` });
+      return;
+    }
+    setBusyId("novo:" + r.playerId);
+    setResult(null);
+    const { data, error } = await callRpc("set_novo_jogador", {
+      _player_id: r.playerId,
+      _full_name: name,
+      _position: pos,
+      _espn_id: espn.trim() || null,
+    });
+    setBusyId(null);
+    if (error) {
+      setResult({ ok: false, message: error.message });
+      return;
+    }
+    setResult({ ok: true, message: typeof data === "string" ? data : "Jogador novo atualizado." });
+    setNovoEdits((cur) => {
+      const next = { ...cur };
+      delete next[r.playerId];
+      return next;
+    });
+    await verPreviaLeilao();
   }
 
   async function commitLeilao() {
@@ -833,6 +904,10 @@ function AdminMercadoPage() {
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
+                  Lance em jogador que não estava no banco aparece na prévia como <strong>novo</strong>: confira o
+                  nome, defina a <strong>posição</strong> (obrigatória) e, se souber, o ESPN id antes de consolidar.
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
                   "Processar só o leilão" cria os signings mas NÃO processa a fila nem reabre o
                   mercado — no domingo, use a consolidação abaixo.
                 </p>
@@ -840,21 +915,91 @@ function AdminMercadoPage() {
                   (prevLeilao.length === 0 ? (
                     <p className="mt-3 text-sm text-muted-foreground">Nenhum vencedor projetado.</p>
                   ) : (
-                    <ul className="mt-3 space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
-                      {prevLeilao.map((r, i) => (
-                        <li key={i} className="flex justify-between">
-                          <span>
-                            {r.playerName}
-                            {r.position ? (
-                              <span className="text-muted-foreground"> ({r.position})</span>
-                            ) : (
-                              ""
-                            )}{" "}
-                            → <span className="font-medium">{r.teamName}</span>
-                          </span>
-                          <span className="tabular-nums">{fmtMoney(r.salary)}</span>
-                        </li>
-                      ))}
+                    <ul className="mt-3 space-y-2 rounded-lg border border-border bg-card p-3 text-sm">
+                      {prevLeilao.map((r, i) =>
+                        r.isPending ? (
+                          <li key={i} className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span>
+                                <span className="mr-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                                  novo
+                                </span>
+                                <span className="font-medium">{r.playerName}</span> →{" "}
+                                <span className="font-medium">{r.teamName}</span>
+                              </span>
+                              <span className="tabular-nums">{fmtMoney(r.salary)}</span>
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <Input
+                                value={novoEdits[r.playerId]?.name ?? r.playerName}
+                                onChange={(e) =>
+                                  setNovoEdits((cur) => ({
+                                    ...cur,
+                                    [r.playerId]: { ...cur[r.playerId], name: e.target.value },
+                                  }))
+                                }
+                                className="w-52"
+                                aria-label="Nome do jogador"
+                              />
+                              <select
+                                value={novoEdits[r.playerId]?.pos ?? r.pendingPosition ?? ""}
+                                onChange={(e) =>
+                                  setNovoEdits((cur) => ({
+                                    ...cur,
+                                    [r.playerId]: { ...cur[r.playerId], pos: e.target.value },
+                                  }))
+                                }
+                                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                                aria-label="Posição"
+                              >
+                                <option value="">Posição…</option>
+                                {NOVO_POSICOES.map((p) => (
+                                  <option key={p} value={p}>
+                                    {p}
+                                  </option>
+                                ))}
+                              </select>
+                              <Input
+                                value={novoEdits[r.playerId]?.espn ?? r.espnId ?? ""}
+                                onChange={(e) =>
+                                  setNovoEdits((cur) => ({
+                                    ...cur,
+                                    [r.playerId]: { ...cur[r.playerId], espn: e.target.value },
+                                  }))
+                                }
+                                placeholder="ESPN id (opcional)"
+                                className="w-40"
+                                aria-label="ESPN id"
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => void salvarNovo(r)}
+                                disabled={busyId === "novo:" + r.playerId}
+                              >
+                                {busyId === "novo:" + r.playerId ? "..." : "Salvar"}
+                              </Button>
+                              {!r.pendingPosition && (
+                                <span className="text-xs text-amber-700 dark:text-amber-400">
+                                  sem posição — a consolidação fica bloqueada
+                                </span>
+                              )}
+                            </div>
+                          </li>
+                        ) : (
+                          <li key={i} className="flex justify-between">
+                            <span>
+                              {r.playerName}
+                              {r.position ? (
+                                <span className="text-muted-foreground"> ({r.position})</span>
+                              ) : (
+                                ""
+                              )}{" "}
+                              → <span className="font-medium">{r.teamName}</span>
+                            </span>
+                            <span className="tabular-nums">{fmtMoney(r.salary)}</span>
+                          </li>
+                        ),
+                      )}
                     </ul>
                   ))}
               </>
