@@ -15,6 +15,7 @@ import {
   Settings,
   ArrowLeftRight,
   CheckCircle2,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -73,6 +74,7 @@ export const navSections: NavSection[] = [
     label: "Times",
     items: [
       { to: "/elencos", label: "Elencos", icon: Users, desc: "Times e jogadores" },
+      { to: "/jogadores", label: "Jogadores", icon: Search, desc: "Buscar jogador e ver o time" },
       { to: "/gms", label: "GMs", icon: UserCog, desc: "General Managers da liga" },
     ],
   },

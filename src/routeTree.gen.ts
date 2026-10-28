@@ -21,6 +21,7 @@ import { Route as MercadoRouteImport } from './routes/mercado'
 import { Route as MediasRouteImport } from './routes/medias'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeilaoRouteImport } from './routes/leilao'
+import { Route as JogadoresRouteImport } from './routes/jogadores'
 import { Route as GmsRouteImport } from './routes/gms'
 import { Route as FreeAgentsRouteImport } from './routes/free-agents'
 import { Route as EsqueciSenhaRouteImport } from './routes/esqueci-senha'
@@ -96,6 +97,11 @@ const LoginRoute = LoginRouteImport.update({
 const LeilaoRoute = LeilaoRouteImport.update({
   id: '/leilao',
   path: '/leilao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JogadoresRoute = JogadoresRouteImport.update({
+  id: '/jogadores',
+  path: '/jogadores',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GmsRoute = GmsRouteImport.update({
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/esqueci-senha': typeof EsqueciSenhaRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/jogadores': typeof JogadoresRoute
   '/leilao': typeof LeilaoRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/esqueci-senha': typeof EsqueciSenhaRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/jogadores': typeof JogadoresRoute
   '/leilao': typeof LeilaoRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/esqueci-senha': typeof EsqueciSenhaRoute
   '/free-agents': typeof FreeAgentsRoute
   '/gms': typeof GmsRoute
+  '/jogadores': typeof JogadoresRoute
   '/leilao': typeof LeilaoRoute
   '/login': typeof LoginRoute
   '/medias': typeof MediasRoute
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/esqueci-senha'
     | '/free-agents'
     | '/gms'
+    | '/jogadores'
     | '/leilao'
     | '/login'
     | '/medias'
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/esqueci-senha'
     | '/free-agents'
     | '/gms'
+    | '/jogadores'
     | '/leilao'
     | '/login'
     | '/medias'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/esqueci-senha'
     | '/free-agents'
     | '/gms'
+    | '/jogadores'
     | '/leilao'
     | '/login'
     | '/medias'
@@ -374,6 +386,7 @@ export interface RootRouteChildren {
   EsqueciSenhaRoute: typeof EsqueciSenhaRoute
   FreeAgentsRoute: typeof FreeAgentsRoute
   GmsRoute: typeof GmsRoute
+  JogadoresRoute: typeof JogadoresRoute
   LeilaoRoute: typeof LeilaoRoute
   LoginRoute: typeof LoginRoute
   MediasRoute: typeof MediasRoute
@@ -478,6 +491,13 @@ declare module '@tanstack/react-router' {
       path: '/leilao'
       fullPath: '/leilao'
       preLoaderRoute: typeof LeilaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jogadores': {
+      id: '/jogadores'
+      path: '/jogadores'
+      fullPath: '/jogadores'
+      preLoaderRoute: typeof JogadoresRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gms': {
@@ -606,6 +626,7 @@ const rootRouteChildren: RootRouteChildren = {
   EsqueciSenhaRoute: EsqueciSenhaRoute,
   FreeAgentsRoute: FreeAgentsRoute,
   GmsRoute: GmsRoute,
+  JogadoresRoute: JogadoresRoute,
   LeilaoRoute: LeilaoRoute,
   LoginRoute: LoginRoute,
   MediasRoute: MediasRoute,

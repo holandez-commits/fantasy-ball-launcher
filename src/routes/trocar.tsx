@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { espnPlayerUrl } from "@/lib/links";
 
 export const Route = createFileRoute("/trocar")({
   head: () => ({
@@ -30,7 +31,14 @@ export const Route = createFileRoute("/trocar")({
 const PENALTY_MIN = 50_000;
 
 type TeamLite = { id: string; name: string };
-type PlayerAsset = { kind: "player"; id: string; name: string; position: string | null; salary: number };
+type PlayerAsset = {
+  kind: "player";
+  id: string;
+  name: string;
+  position: string | null;
+  salary: number;
+  espnId: string | null;
+};
 type PickAsset = { kind: "pick"; id: string; label: string; origin: string | null };
 // Multa consolidada por ano: id = "<time>|<ano>" (único entre os times da troca); parts = linhas reais de team_penalties que a compõem.
 type PenaltyAsset = {
@@ -61,7 +69,7 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
   // jogadores ativos
   const reRes = await db
     .from("roster_entries")
-    .select("id, player_id, position, player:players(full_name)")
+    .select("id, player_id, position, player:players(full_name, espn_id)")
     .eq("team_id", teamId)
     .eq("season", season.start_year)
     .eq("status", "active");
@@ -69,7 +77,7 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
     id: string;
     player_id: string;
     position: string | null;
-    player: { full_name: string } | null;
+    player: { full_name: string; espn_id: string | null } | null;
   }[];
   const entryIds = entries.map((e) => e.id);
   let cy: { roster_entry_id: string; season_label: string; salary: number }[] = [];
@@ -85,6 +93,7 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
       kind: "player" as const,
       id: e.player_id,
       name: e.player?.full_name ?? "—",
+      espnId: e.player?.espn_id ?? null,
       position: e.position,
       salary: cy.find((c) => c.roster_entry_id === e.id && c.season_label === season.label)?.salary ?? 0,
     }))
@@ -564,7 +573,20 @@ function TeamPanel({
             row(
               p,
               <span>
-                <span className="font-medium">{p.name}</span>
+                {p.espnId ? (
+                  <a
+                    href={espnPlayerUrl(p.espnId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Ver na ESPN"
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-medium hover:underline"
+                  >
+                    {p.name}
+                  </a>
+                ) : (
+                  <span className="font-medium">{p.name}</span>
+                )}
                 <span className="ml-2 text-xs text-muted-foreground">{p.position ?? "—"}</span>
                 <span className="ml-2 text-xs tabular-nums text-muted-foreground">
                   {p.salary ? fmtMoney(p.salary) : "—"}
