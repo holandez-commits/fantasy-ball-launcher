@@ -30,6 +30,7 @@ import { Route as EscalarRouteImport } from './routes/escalar'
 import { Route as EscalacoesRouteImport } from './routes/escalacoes'
 import { Route as ElencosRouteImport } from './routes/elencos'
 import { Route as DraftRouteImport } from './routes/draft'
+import { Route as ClassificadosRouteImport } from './routes/classificados'
 import { Route as ClassificacaoRouteImport } from './routes/classificacao'
 import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as IndexRouteImport } from './routes/index'
@@ -145,6 +146,11 @@ const DraftRoute = DraftRouteImport.update({
   path: '/draft',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClassificadosRoute = ClassificadosRouteImport.update({
+  id: '/classificados',
+  path: '/classificados',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClassificacaoRoute = ClassificacaoRouteImport.update({
   id: '/classificacao',
   path: '/classificacao',
@@ -195,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
   '/classificacao': typeof ClassificacaoRoute
+  '/classificados': typeof ClassificadosRoute
   '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
   '/classificacao': typeof ClassificacaoRoute
+  '/classificados': typeof ClassificadosRoute
   '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
   '/classificacao': typeof ClassificacaoRoute
+  '/classificados': typeof ClassificadosRoute
   '/draft': typeof DraftRoute
   '/elencos': typeof ElencosRoute
   '/escalacoes': typeof EscalacoesRoute
@@ -294,6 +303,7 @@ export interface FileRouteTypes {
     | '/'
     | '/calendario'
     | '/classificacao'
+    | '/classificados'
     | '/draft'
     | '/elencos'
     | '/escalacoes'
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/'
     | '/calendario'
     | '/classificacao'
+    | '/classificados'
     | '/draft'
     | '/elencos'
     | '/escalacoes'
@@ -358,6 +369,7 @@ export interface FileRouteTypes {
     | '/'
     | '/calendario'
     | '/classificacao'
+    | '/classificados'
     | '/draft'
     | '/elencos'
     | '/escalacoes'
@@ -391,6 +403,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CalendarioRoute: typeof CalendarioRoute
   ClassificacaoRoute: typeof ClassificacaoRoute
+  ClassificadosRoute: typeof ClassificadosRoute
   DraftRoute: typeof DraftRoute
   ElencosRoute: typeof ElencosRoute
   EscalacoesRoute: typeof EscalacoesRoute
@@ -569,6 +582,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DraftRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/classificados': {
+      id: '/classificados'
+      path: '/classificados'
+      fullPath: '/classificados'
+      preLoaderRoute: typeof ClassificadosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/classificacao': {
       id: '/classificacao'
       path: '/classificacao'
@@ -639,6 +659,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CalendarioRoute: CalendarioRoute,
   ClassificacaoRoute: ClassificacaoRoute,
+  ClassificadosRoute: ClassificadosRoute,
   DraftRoute: DraftRoute,
   ElencosRoute: ElencosRoute,
   EscalacoesRoute: EscalacoesRoute,

@@ -236,7 +236,7 @@ export function AppSidebar() {
     <aside
       className={cn(
         "hidden shrink-0 border-r border-[color:var(--chrome-border)] bg-[color:var(--chrome)] text-[color:var(--chrome-foreground)] transition-[width] duration-200 lg:block",
-        collapsed ? "w-16" : "w-60",
+        collapsed ? "w-16" : "w-[17rem]",
       )}
     >
       <div className="sticky top-0 flex h-screen flex-col">

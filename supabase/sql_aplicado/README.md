@@ -36,6 +36,7 @@ A pasta irmã `../referencia/` guarda rascunhos de modelagem (NÃO rodados, NÃO
 | `20261027_notificacoes_blindagem.sql` | 27/out/2026 (MCP) | Sino: os 6 gatilhos dos lotes 1 e 2 passam a rodar com `EXCEPTION WHEN OTHERS` (aviso nunca bloqueia jogo, mercado, prazo, proposta ou decisão). Lógica inalterada. Testado com falha injetada em rollback. |
 | `20261027_busca_jogadores.sql` | 27/out/2026 (MCP) | Buscador `/jogadores`: `norm_busca(text)` (sem acento/caixa) e `buscar_jogadores(_q,_limit)` (todos os termos no nome; devolve time 26/27, status/IR, posição e contrato por ano; sem time = free agent). Grant p/ anon e authenticated. |
 | `20261027_trade_block.sql` | 27/out/2026 (MCP) | Trade block: `trade_block_posts`/`trade_block_items` (vários jogadores e picks por anúncio, texto ≤200, 1 item = 1 anúncio, RLS sem policies), RPCs `get_trade_block`, `get_trade_block_ofertaveis`, `publicar_trade_block`, `retirar_trade_block`, limpeza automática `trade_block_limpar`; sino ganha a categoria `bloco` (checks e prefs atualizados). Testado em rollback. |
+| `20261027_classificados_rename.sql` | 27/out/2026 (MCP) | Trade block vira "Classificados Bola Presa" (`/classificados`): `publicar_trade_block` com novo título/link do aviso; avisos antigos ajustados. Nomes internos (`trade_block_*`, categoria `bloco`) mantidos. |
 
 > **Nota:** o DDL/seed de **auth + escalação** (Set/2026) foi aplicado direto no banco e o
 > SQL original se perdeu — não está aqui. Se um dia precisar do baseline completo do schema,
