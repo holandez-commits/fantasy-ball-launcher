@@ -13,6 +13,7 @@ import { Route as TrocarRouteImport } from './routes/trocar'
 import { Route as RegrasRouteImport } from './routes/regras'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as RecordesRouteImport } from './routes/recordes'
+import { Route as NotificacoesRouteImport } from './routes/notificacoes'
 import { Route as NoticiasRouteImport } from './routes/noticias'
 import { Route as MovimentacoesRouteImport } from './routes/movimentacoes'
 import { Route as MinhaContaRouteImport } from './routes/minha-conta'
@@ -55,6 +56,11 @@ const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
 const RecordesRoute = RecordesRouteImport.update({
   id: '/recordes',
   path: '/recordes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificacoesRoute = NotificacoesRouteImport.update({
+  id: '/notificacoes',
+  path: '/notificacoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NoticiasRoute = NoticiasRouteImport.update({
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/minha-conta': typeof MinhaContaRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
+  '/notificacoes': typeof NotificacoesRoute
   '/recordes': typeof RecordesRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/minha-conta': typeof MinhaContaRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
+  '/notificacoes': typeof NotificacoesRoute
   '/recordes': typeof RecordesRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
@@ -250,6 +258,7 @@ export interface FileRoutesById {
   '/minha-conta': typeof MinhaContaRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/noticias': typeof NoticiasRoute
+  '/notificacoes': typeof NotificacoesRoute
   '/recordes': typeof RecordesRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/minha-conta'
     | '/movimentacoes'
     | '/noticias'
+    | '/notificacoes'
     | '/recordes'
     | '/redefinir-senha'
     | '/regras'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/minha-conta'
     | '/movimentacoes'
     | '/noticias'
+    | '/notificacoes'
     | '/recordes'
     | '/redefinir-senha'
     | '/regras'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/minha-conta'
     | '/movimentacoes'
     | '/noticias'
+    | '/notificacoes'
     | '/recordes'
     | '/redefinir-senha'
     | '/regras'
@@ -369,6 +381,7 @@ export interface RootRouteChildren {
   MinhaContaRoute: typeof MinhaContaRoute
   MovimentacoesRoute: typeof MovimentacoesRoute
   NoticiasRoute: typeof NoticiasRoute
+  NotificacoesRoute: typeof NotificacoesRoute
   RecordesRoute: typeof RecordesRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   RegrasRoute: typeof RegrasRoute
@@ -409,6 +422,13 @@ declare module '@tanstack/react-router' {
       path: '/recordes'
       fullPath: '/recordes'
       preLoaderRoute: typeof RecordesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notificacoes': {
+      id: '/notificacoes'
+      path: '/notificacoes'
+      fullPath: '/notificacoes'
+      preLoaderRoute: typeof NotificacoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/noticias': {
@@ -593,6 +613,7 @@ const rootRouteChildren: RootRouteChildren = {
   MinhaContaRoute: MinhaContaRoute,
   MovimentacoesRoute: MovimentacoesRoute,
   NoticiasRoute: NoticiasRoute,
+  NotificacoesRoute: NotificacoesRoute,
   RecordesRoute: RecordesRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   RegrasRoute: RegrasRoute,

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { SidebarContent } from "./AppSidebar";
+import { NotificationBell } from "./NotificationBell";
 
 /**
  * Navegação mobile (< lg): barra fina no topo (marca + hambúrguer) que abre a
@@ -16,14 +17,17 @@ export function MobileNav() {
         <Link to="/" className="font-display text-lg font-medium tracking-tight">
           Liga <span className="text-[color:var(--court-bright)]">Bola Presa</span>
         </Link>
-        <button
-          type="button"
-          aria-label="Abrir menu"
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center justify-center rounded-md p-2 hover:bg-[color:var(--chrome-hover)]"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell side="bottom" align="end" />
+          <button
+            type="button"
+            aria-label="Abrir menu"
+            onClick={() => setOpen(true)}
+            className="inline-flex items-center justify-center rounded-md p-2 hover:bg-[color:var(--chrome-hover)]"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       {open && (
@@ -46,7 +50,7 @@ export function MobileNav() {
                 </button>
               </div>
               <div className="min-h-0 flex-1">
-                <SidebarContent onNavigate={() => setOpen(false)} />
+                <SidebarContent showBell={false} onNavigate={() => setOpen(false)} />
               </div>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { navSections, gmItems, adminItems, type NavItem } from "@/lib/navigation
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { ImpersonationSwitcher } from "@/components/ImpersonationSwitcher";
+import { NotificationBell } from "@/components/NotificationBell";
 
 function itemClass(active: boolean, collapsed: boolean) {
   return cn(
@@ -54,9 +55,11 @@ function ItemLink({
 export function SidebarContent({
   collapsed = false,
   onNavigate,
+  showBell = true,
 }: {
   collapsed?: boolean;
   onNavigate?: () => void;
+  showBell?: boolean;
 }) {
   const { pathname } = useLocation();
   const { user, loading, isAdmin, isGm, teamSlug, signOut } = useAuth();
@@ -75,25 +78,30 @@ export function SidebarContent({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Marca */}
-      <Link
-        to="/"
-        onClick={onNavigate}
+      {/* Marca + sino */}
+      <div
         className={cn(
-          "flex items-center gap-2 border-b border-[color:var(--chrome-border)] px-4 py-3",
-          collapsed && "justify-center px-0",
+          "flex items-center border-b border-[color:var(--chrome-border)]",
+          collapsed ? "flex-col justify-center gap-1 py-2" : "justify-between pr-2",
         )}
       >
-        {collapsed ? (
-          <span className="font-display text-base font-semibold text-[color:var(--court-bright)]">
-            BP
-          </span>
-        ) : (
-          <span className="font-display text-lg font-medium tracking-tight text-[color:var(--chrome-foreground)]">
-            Liga <span className="text-[color:var(--court-bright)]">Bola Presa</span>
-          </span>
-        )}
-      </Link>
+        <Link
+          to="/"
+          onClick={onNavigate}
+          className={cn("flex min-w-0 items-center gap-2 px-4 py-3", collapsed && "px-0 py-1")}
+        >
+          {collapsed ? (
+            <span className="font-display text-base font-semibold text-[color:var(--court-bright)]">
+              BP
+            </span>
+          ) : (
+            <span className="font-display text-lg font-medium tracking-tight text-[color:var(--chrome-foreground)]">
+              Liga <span className="text-[color:var(--court-bright)]">Bola Presa</span>
+            </span>
+          )}
+        </Link>
+        {showBell && <NotificationBell side="right" align="start" onNavigate={onNavigate} />}
+      </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         {/* TEMPORÁRIO (testes finais): seletor de impersonação, só admin */}
