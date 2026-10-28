@@ -16,6 +16,7 @@ import {
   ArrowLeftRight,
   CheckCircle2,
   Search,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -96,6 +97,7 @@ export const navSections: NavSection[] = [
 export const gmItems: NavItem[] = [
   { to: "/escalar", label: "Escalar", icon: ClipboardList, desc: "Montar sua escalação" },
   { to: "/mercado", label: "Mercado", icon: Store, desc: "Dispensa, IR, trocas e leilão" },
+  { to: "/trade-block", label: "Trade block", icon: Megaphone, desc: "Jogadores e picks disponíveis para troca" },
   { to: "/leilao", label: "Free Agents", icon: UserPlus, desc: "Leilão de jogadores livres" },
 ];
 

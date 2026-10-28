@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
 import {
   db,
@@ -24,6 +24,9 @@ export const Route = createFileRoute("/trocar")({
       { title: "Propor troca — Liga Bola Presa de Fantasy" },
       { name: "robots", content: "noindex" },
     ],
+  }),
+  validateSearch: (search: Record<string, unknown>): { com?: string } => ({
+    com: typeof search.com === "string" && search.com ? search.com : undefined,
   }),
   component: TrocarPage,
 });
@@ -155,6 +158,8 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
 
 function TrocarPage() {
   const { ready, forbidden, teamId } = useRequireAuth({ role: "gm" });
+  const { com } = Route.useSearch(); // vindo do trade block: já adiciona esse time na proposta
+  const comApplied = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -207,6 +212,14 @@ function TrocarPage() {
   useEffect(() => {
     if (ready && teamId) void load();
   }, [ready, teamId, load]);
+
+  useEffect(() => {
+    if (!com || comApplied.current || loading || !season || !teamId) return;
+    if (!allTeams.some((t) => t.id === com)) return;
+    comApplied.current = true;
+    void addTeam(com);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [com, loading, season, teamId, allTeams]);
 
   const participating = useMemo(
     () => (teamId ? [teamId, ...otherIds] : otherIds),

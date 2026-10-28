@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrocarRouteImport } from './routes/trocar'
+import { Route as TradeBlockRouteImport } from './routes/trade-block'
 import { Route as RegrasRouteImport } from './routes/regras'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as RecordesRouteImport } from './routes/recordes'
@@ -42,6 +43,11 @@ import { Route as AdminConsolidarLockRouteImport } from './routes/admin.consolid
 const TrocarRoute = TrocarRouteImport.update({
   id: '/trocar',
   path: '/trocar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TradeBlockRoute = TradeBlockRouteImport.update({
+  id: '/trade-block',
+  path: '/trade-block',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegrasRoute = RegrasRouteImport.update({
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/recordes': typeof RecordesRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
+  '/trade-block': typeof TradeBlockRoute
   '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
@@ -239,6 +246,7 @@ export interface FileRoutesByTo {
   '/recordes': typeof RecordesRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
+  '/trade-block': typeof TradeBlockRoute
   '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
@@ -271,6 +279,7 @@ export interface FileRoutesById {
   '/recordes': typeof RecordesRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/regras': typeof RegrasRoute
+  '/trade-block': typeof TradeBlockRoute
   '/trocar': typeof TrocarRoute
   '/admin/consolidar-lock': typeof AdminConsolidarLockRoute
   '/admin/fechar-semana': typeof AdminFecharSemanaRoute
@@ -304,6 +313,7 @@ export interface FileRouteTypes {
     | '/recordes'
     | '/redefinir-senha'
     | '/regras'
+    | '/trade-block'
     | '/trocar'
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
@@ -335,6 +345,7 @@ export interface FileRouteTypes {
     | '/recordes'
     | '/redefinir-senha'
     | '/regras'
+    | '/trade-block'
     | '/trocar'
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
@@ -366,6 +377,7 @@ export interface FileRouteTypes {
     | '/recordes'
     | '/redefinir-senha'
     | '/regras'
+    | '/trade-block'
     | '/trocar'
     | '/admin/consolidar-lock'
     | '/admin/fechar-semana'
@@ -398,6 +410,7 @@ export interface RootRouteChildren {
   RecordesRoute: typeof RecordesRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   RegrasRoute: typeof RegrasRoute
+  TradeBlockRoute: typeof TradeBlockRoute
   TrocarRoute: typeof TrocarRoute
   AdminConsolidarLockRoute: typeof AdminConsolidarLockRoute
   AdminFecharSemanaRoute: typeof AdminFecharSemanaRoute
@@ -414,6 +427,13 @@ declare module '@tanstack/react-router' {
       path: '/trocar'
       fullPath: '/trocar'
       preLoaderRoute: typeof TrocarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trade-block': {
+      id: '/trade-block'
+      path: '/trade-block'
+      fullPath: '/trade-block'
+      preLoaderRoute: typeof TradeBlockRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/regras': {
@@ -638,6 +658,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecordesRoute: RecordesRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   RegrasRoute: RegrasRoute,
+  TradeBlockRoute: TradeBlockRoute,
   TrocarRoute: TrocarRoute,
   AdminConsolidarLockRoute: AdminConsolidarLockRoute,
   AdminFecharSemanaRoute: AdminFecharSemanaRoute,
