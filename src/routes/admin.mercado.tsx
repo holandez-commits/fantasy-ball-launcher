@@ -9,6 +9,7 @@ import {
   previaMulta,
   fetchCurrentSeason,
   fetchMarketOpen,
+  fmtDateTime,
   TX_TYPE_LABEL,
   IR_TYPE_LABEL,
   irTypeLabel,
@@ -112,6 +113,8 @@ function AdminMercadoPage() {
   const [prevCons, setPrevCons] = useState<PreviaCons[] | null>(null);
 
   const [toggling, setToggling] = useState(false);
+  const [auto, setAuto] = useState<{ enabled: boolean; last_run_at: string | null; last_run_result: string | null } | null>(null);
+  const [togglingAuto, setTogglingAuto] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -369,6 +372,28 @@ function AdminMercadoPage() {
   useEffect(() => {
     if (ready) void load();
   }, [ready, load]);
+
+  const loadAuto = useCallback(async () => {
+    const { data, error } = await callRpc("get_market_auto_close");
+    if (!error && data) setAuto(data as NonNullable<typeof auto>);
+  }, []);
+
+  useEffect(() => {
+    if (ready) void loadAuto();
+  }, [ready, loadAuto]);
+
+  async function toggleAuto() {
+    if (!auto) return;
+    setTogglingAuto(true);
+    setResult(null);
+    const { data, error } = await callRpc("set_market_auto_close", { _enabled: !auto.enabled });
+    setTogglingAuto(false);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: typeof data === "string" ? data : "Atualizado." });
+      await loadAuto();
+    }
+  }
 
   async function toggleMarket() {
     if (marketOpen === null) return;
@@ -715,6 +740,32 @@ function AdminMercadoPage() {
             {toggling ? "Alterando..." : marketOpen ? "Fechar mercado" : "Abrir mercado"}
           </Button>
         </div>
+        {auto && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <div>
+              <div className="text-sm font-medium">
+                Fechamento automático (todo sábado, 00:00):{" "}
+                {auto.enabled ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">ATIVO</span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">PAUSADO</span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Pause fora da temporada. Se o mercado já estiver fechado, nada acontece.
+                {auto.last_run_at && (
+                  <>
+                    {" "}
+                    Última execução: {fmtDateTime(auto.last_run_at)} — {auto.last_run_result}
+                  </>
+                )}
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => void toggleAuto()} disabled={togglingAuto}>
+              {togglingAuto ? "Alterando..." : auto.enabled ? "Pausar" : "Reativar"}
+            </Button>
+          </div>
+        )}
       </section>
 
       {loading ? (
