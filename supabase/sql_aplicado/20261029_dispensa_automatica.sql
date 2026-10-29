@@ -1,0 +1,6 @@
+-- s19: dispensa sem aprovação do admin. Já aplicado em PROD via MCP (migration dispensa_automatica).
+-- executar_dispensa_core(uuid): cópia de executar_dispensa SEM checagem de admin (sem grant; só uso interno).
+-- executar_dispensa(uuid): agora só confere admin e chama o core (a consolidação e o botão do admin seguem iguais).
+-- propor_dispensa(uuid,int): recusa duplicada pendente; cria a tx, marca 'approved' (admin_decided_at nulo => sem aviso
+--   "aprovada pelo admin") e, se o mercado está aberto, executa na hora (aviso "Dispensa executada" para a liga via gatilho);
+--   mercado fechado => fica 'approved' e a consolidação_commit executa na fila FIFO.

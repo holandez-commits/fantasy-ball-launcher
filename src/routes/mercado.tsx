@@ -388,7 +388,13 @@ function MercadoPage() {
     setRelTarget(null);
     if (error) setResult({ ok: false, message: error.message });
     else {
-      setResult({ ok: true, message: "Dispensa proposta. Agora aguarda a aprovação do admin." });
+      setResult({
+        ok: true,
+        message:
+          marketOpen === true
+            ? "Dispensa executada. O jogador saiu do elenco e a multa (se houver) já foi aplicada."
+            : "Dispensa na fila: será executada na próxima consolidação.",
+      });
       void load();
     }
   }
@@ -645,7 +651,7 @@ function MercadoPage() {
                           <td className="px-4 py-2.5 text-right">
                             {pending ? (
                               <span className="inline-flex items-center rounded bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                                {pendRel ? "dispensa pendente" : "IR pendente"}
+                                {pendRel ? "dispensa na fila" : "IR pendente"}
                               </span>
                             ) : (
                               <div className="flex justify-end gap-2">
@@ -681,8 +687,9 @@ function MercadoPage() {
               </div>
             )}
             <p className="mt-2 text-xs text-muted-foreground">
-              A multa é estimada; o valor final é calculado quando o admin executa a dispensa (por
-              ano restante do contrato).
+              A multa é estimada; o valor final é calculado na execução da dispensa (por ano restante
+              do contrato). Com o mercado aberto a dispensa é imediata; fechado, vai para a fila da
+              consolidação.
             </p>
           </section>
 
@@ -787,8 +794,9 @@ function MercadoPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
-                  O jogador sai do seu elenco e a proposta vai pra fila do admin. Se aprovada e
-                  executada, nasce a multa abaixo (estimativa).
+                  {marketOpen === true
+                    ? "O jogador sai do seu elenco agora e a multa abaixo (estimativa) é aplicada na hora."
+                    : "O mercado está fechado: a dispensa entra na fila e é executada na consolidação. O jogador continua no elenco até lá. A multa nasce na execução (estimativa abaixo)."}
                 </p>
                 {relTarget && relTarget.multaTotal > 0 ? (
                   <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
@@ -821,7 +829,7 @@ function MercadoPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <Button onClick={() => void confirmarDispensa()} disabled={submitting}>
-              {submitting ? "Enviando..." : "Propor dispensa"}
+              {submitting ? "Enviando..." : marketOpen === true ? "Dispensar agora" : "Colocar na fila"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
