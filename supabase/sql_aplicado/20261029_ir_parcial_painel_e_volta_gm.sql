@@ -1,0 +1,6 @@
+-- s19: IR parcial — painel do admin + volta pelo GM. Já aplicado em PROD via MCP (migration ir_parcial_painel_e_volta_gm).
+-- roster_entries.ir_since (timestamptz) + gatilho trg_roster_ir_since (marca ao entrar no IR, limpa ao sair).
+-- Backfill: data de execução do IR; sem transação => created_at (19/10, "desde o início").
+-- get_ir_parcial_painel() [admin]: jogadores em IR parcial, mais antigo primeiro, com dias, ativos do time.
+-- reativar_ir_gm(player) [GM]: só IR parcial do próprio time; exige < 15 ativos (senão "dispense antes");
+--   volta na hora; aviso 'ir_returned' (categoria movimentacao) para a liga. reativar_ir (admin) segue igual.

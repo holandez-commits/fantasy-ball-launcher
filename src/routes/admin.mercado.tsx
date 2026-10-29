@@ -84,6 +84,19 @@ type PreviaLeilao = {
 const NOVO_POSICOES = ["PG", "SG", "SF", "PF", "C", "PG/SG", "SG/SF", "SF/PF", "PF/C"];
 type PreviaCons = { fase: string; detalhe: string };
 
+type IrPainelRow = {
+  player_id: string;
+  full_name: string;
+  position: string | null;
+  team_id: string;
+  team_name: string;
+  team_slug: string;
+  ir_since: string;
+  dias: number;
+  desde_inicio: boolean;
+  ativos: number;
+};
+
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto max-w-4xl px-4 py-12 md:px-6">{children}</div>;
 }
@@ -115,6 +128,7 @@ function AdminMercadoPage() {
   const [toggling, setToggling] = useState(false);
   const [auto, setAuto] = useState<{ enabled: boolean; last_run_at: string | null; last_run_result: string | null } | null>(null);
   const [togglingAuto, setTogglingAuto] = useState(false);
+  const [irPainel, setIrPainel] = useState<IrPainelRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -381,6 +395,15 @@ function AdminMercadoPage() {
   useEffect(() => {
     if (ready) void loadAuto();
   }, [ready, loadAuto]);
+
+  const loadIrPainel = useCallback(async () => {
+    const { data, error } = await callRpc("get_ir_parcial_painel");
+    if (!error && data) setIrPainel(data as IrPainelRow[]);
+  }, []);
+
+  useEffect(() => {
+    if (ready) void loadIrPainel();
+  }, [ready, loadIrPainel]);
 
   async function toggleAuto() {
     if (!auto) return;
@@ -764,6 +787,56 @@ function AdminMercadoPage() {
             <Button variant="outline" onClick={() => void toggleAuto()} disabled={togglingAuto}>
               {togglingAuto ? "Alterando..." : auto.enabled ? "Pausar" : "Reativar"}
             </Button>
+          </div>
+        )}
+      </section>
+
+      {/* IR parcial: tempo sem reativar */}
+      <section className="mt-6 rounded-lg border border-border bg-card p-4">
+        <h2 className="text-sm font-medium">IR parcial: há quanto tempo estão fora</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Do mais antigo para o mais novo. O GM pede a volta em /mercado; sem vaga (15 ativos), precisa dispensar
+          alguém antes. “Desde o início” = já estava no IR na importação do elenco (a data real não existe).
+        </p>
+        {irPainel === null ? (
+          <Skeleton className="mt-3 h-20 w-full" />
+        ) : irPainel.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">Nenhum jogador em IR parcial.</p>
+        ) : (
+          <div className="mt-3 overflow-x-auto rounded-md border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="px-3 py-2 text-left">Jogador</th>
+                  <th className="px-3 py-2 text-left">Time</th>
+                  <th className="px-3 py-2 text-right">Dias no IR</th>
+                  <th className="px-3 py-2 text-left">Desde</th>
+                  <th className="px-3 py-2 text-left">Elenco</th>
+                </tr>
+              </thead>
+              <tbody>
+                {irPainel.map((r) => (
+                  <tr key={r.player_id} className="border-b border-border/60 last:border-0">
+                    <td className="px-3 py-2 font-medium">
+                      {r.full_name}
+                      {r.position && <span className="ml-2 text-xs font-normal text-muted-foreground">{r.position}</span>}
+                    </td>
+                    <td className="px-3 py-2">{r.team_name}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums">{r.dias}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {r.desde_inicio ? "desde o início" : fmtDateTime(r.ir_since)}
+                    </td>
+                    <td className="px-3 py-2">
+                      {r.ativos >= 15 ? (
+                        <span className="text-amber-600 dark:text-amber-400">{r.ativos}/15 · sem vaga</span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400">{r.ativos}/15 · tem vaga</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>

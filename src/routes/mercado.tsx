@@ -63,6 +63,7 @@ type IrPlayer = {
   name: string;
   position: string | null;
   irSince: number | null;
+  irSinceAt: string | null;
   irType: string | null;
   capSalary: number;
 };
@@ -250,7 +251,7 @@ function MercadoPage() {
 
       const reRes = await db
         .from("roster_entries")
-        .select("id, player_id, position, status, ir_since_season, ir_type, player:players(full_name)")
+        .select("id, player_id, position, status, ir_since_season, ir_since, ir_type, player:players(full_name)")
         .eq("team_id", teamId)
         .eq("season", cur.start_year)
         .in("status", ["active", "injured_reserve"]);
@@ -261,6 +262,7 @@ function MercadoPage() {
         position: string | null;
         status: string;
         ir_since_season: number | null;
+        ir_since: string | null;
         ir_type: string | null;
         player: { full_name: string } | null;
       }[];
@@ -314,6 +316,7 @@ function MercadoPage() {
               name: e.player?.full_name ?? "—",
               position: e.position,
               irSince: e.ir_since_season,
+              irSinceAt: e.ir_since,
               irType: e.ir_type,
               capSalary: irCapSalary(sal, e.ir_type),
             };
@@ -395,6 +398,18 @@ function MercadoPage() {
             ? "Dispensa executada. O jogador saiu do elenco e a multa (se houver) já foi aplicada."
             : "Dispensa na fila: será executada na próxima consolidação.",
       });
+      void load();
+    }
+  }
+
+  async function pedirVoltaIr(playerId: string) {
+    setSubmitting(true);
+    setResult(null);
+    const { data, error } = await callRpc("reativar_ir_gm", { _player_id: playerId });
+    setSubmitting(false);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: typeof data === "string" ? data : "Jogador reativado." });
       void load();
     }
   }
@@ -708,7 +723,8 @@ function MercadoPage() {
                         <th className="px-4 py-3 text-left">Pos</th>
                         <th className="px-4 py-3 text-left">Tipo</th>
                         <th className="px-3 py-3 text-right">No cap {season?.label}</th>
-                        <th className="px-4 py-3 text-left">Em IR desde</th>
+                        <th className="px-4 py-3 text-left">No IR há</th>
+                        <th className="px-4 py-3 text-right"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -728,7 +744,35 @@ function MercadoPage() {
                           <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
                             {p.capSalary ? fmtMoney(p.capSalary) : "—"}
                           </td>
-                          <td className="px-4 py-2.5 text-muted-foreground">{p.irSince ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground">
+                            {p.irSinceAt
+                              ? (() => {
+                                  const dias = Math.max(
+                                    0,
+                                    Math.floor((Date.now() - new Date(p.irSinceAt).getTime()) / 86_400_000),
+                                  );
+                                  return dias === 1 ? "1 dia" : `${dias} dias`;
+                                })()
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {p.irType === "out_of_season" ? (
+                              <span className="text-xs text-muted-foreground">só na próxima temporada</span>
+                            ) : roster.length >= 15 ? (
+                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                                sem vaga: dispense alguém antes
+                              </span>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={submitting}
+                                onClick={() => void pedirVoltaIr(p.playerId)}
+                              >
+                                Pedir volta
+                              </Button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -737,7 +781,9 @@ function MercadoPage() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   Jogador em IR não ocupa vaga. IR parcial: o salário continua contando no cap. IR
                   fora da temporada: conta só 20% do salário da temporada atual e o retorno é só na
-                  próxima temporada. A reativação é feita pelo admin.
+                  próxima temporada. No IR parcial, você pede a volta aqui: com vaga no elenco (menos de 15
+                  ativos) o jogador volta na hora e já pode ser escalado; sem vaga, dispense alguém
+                  antes.
                 </p>
               </>
             )}
