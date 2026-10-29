@@ -2,9 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { callRpc, fmtMoneyShort } from "@/lib/market";
+import { callRpc } from "@/lib/market";
 import { espnPlayerUrl } from "@/lib/links";
 import { cn } from "@/lib/utils";
+import { contractFromYears, fmtContract } from "@/lib/contracts";
 
 export const Route = createFileRoute("/jogadores")({
   head: () => ({
@@ -118,7 +119,7 @@ function JogadoresPage() {
                 </div>
                 {p.contract.length > 0 && (
                   <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-                    {p.contract.map((c) => `${c.season_label} ${fmtMoneyShort(c.salary)}`).join(" · ")}
+                    {fmtContract(contractFromYears(p.contract))}
                   </p>
                 )}
               </div>

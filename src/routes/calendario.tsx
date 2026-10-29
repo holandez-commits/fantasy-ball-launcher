@@ -127,7 +127,13 @@ function GameCard({ g, teamMap }: { g: GameRow; teamMap: Map<string, TeamRow> })
   const tied = hasScore && g.home_score! === g.away_score!;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div
+      className={cn(
+        "rounded-lg border border-border bg-card p-3",
+        hasScore &&
+          "border-emerald-500/50 border-l-4 border-l-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700/60",
+      )}
+    >
       <div className={cn("flex items-center justify-between gap-2", awayWon && "opacity-50")}>
         <div className="flex items-center gap-2 min-w-0">
           <TeamLogo team={home} />
@@ -171,10 +177,11 @@ function GameCard({ g, teamMap }: { g: GameRow; teamMap: Map<string, TeamRow> })
         <p className="mt-1 text-center text-[10px] uppercase tracking-wide text-muted-foreground">A jogar</p>
       )}
       {hasScore && (
-        <p className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--court)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--court)]" />
-          Concluída
-          {tied && <span className="font-normal text-amber-600">· Empate</span>}
+        <p className="mt-1.5 flex items-center justify-center gap-1.5">
+          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+            ✓ Concluída
+          </span>
+          {tied && <span className="text-[10px] font-normal uppercase tracking-wide text-amber-600">· Empate</span>}
         </p>
       )}
       {g.external_url && (

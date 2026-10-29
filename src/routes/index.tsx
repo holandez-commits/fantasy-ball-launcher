@@ -300,6 +300,12 @@ function GamesSection({
   );
 }
 
+// Jogo concluído: card esverdeado com faixa à esquerda + selo "✓ Concluída"
+const FINAL_CARD =
+  "border-emerald-500/50 border-l-4 border-l-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700/60";
+const FINAL_BADGE =
+  "inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300";
+
 // ─── GameCard (placar do banco quando final; ao vivo da planilha senão) ─────────
 
 function GameCard({
@@ -345,10 +351,9 @@ function GameCard({
         </span>
       </div>
       {isFinal ? (
-        <p className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--court)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--court)]" />
-          Concluída
-          {tied && <span className="font-normal text-amber-600">· Empate</span>}
+        <p className="mt-1.5 flex items-center justify-center gap-1.5">
+          <span className={FINAL_BADGE}>✓ Concluída</span>
+          {tied && <span className="text-[10px] font-normal uppercase tracking-wide text-amber-600">· Empate</span>}
         </p>
       ) : hasLive ? (
         <p className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-600">
@@ -366,12 +371,15 @@ function GameCard({
       to="/confronto/$gameId"
       params={{ gameId: g.id }}
       title="Ver confronto ao vivo"
-      className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-[color:var(--court)] hover:bg-accent"
+      className={cn(
+        "block rounded-lg border border-border bg-card p-3 transition-colors hover:border-[color:var(--court)] hover:bg-accent",
+        isFinal && FINAL_CARD,
+      )}
     >
       {inner}
     </Link>
   ) : (
-    <div className="rounded-lg border border-border bg-card p-3">{inner}</div>
+    <div className={cn("rounded-lg border border-border bg-card p-3", isFinal && FINAL_CARD)}>{inner}</div>
   );
 }
 

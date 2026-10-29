@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { espnPlayerUrl } from "@/lib/links";
+import { contractFromYears, fmtYearsLeft } from "@/lib/contracts";
 
 export const Route = createFileRoute("/trocar")({
   head: () => ({
@@ -40,6 +41,7 @@ type PlayerAsset = {
   name: string;
   position: string | null;
   salary: number;
+  years: number;
   espnId: string | null;
 };
 type PickAsset = { kind: "pick"; id: string; label: string; origin: string | null };
@@ -99,6 +101,11 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
       espnId: e.player?.espn_id ?? null,
       position: e.position,
       salary: cy.find((c) => c.roster_entry_id === e.id && c.season_label === season.label)?.salary ?? 0,
+      years:
+        contractFromYears(
+          cy.filter((c) => c.roster_entry_id === e.id),
+          season.label,
+        )?.years ?? 0,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -603,6 +610,7 @@ function TeamPanel({
                 <span className="ml-2 text-xs text-muted-foreground">{p.position ?? "—"}</span>
                 <span className="ml-2 text-xs tabular-nums text-muted-foreground">
                   {p.salary ? fmtMoney(p.salary) : "—"}
+                  {p.years > 0 && ` · ${fmtYearsLeft(p.years)}`}
                 </span>
               </span>,
             ),

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
-import { callRpc, fmtMoneyShort } from "@/lib/market";
+import { callRpc } from "@/lib/market";
 import { espnPlayerUrl } from "@/lib/links";
 import { timeAgo } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { fetchContractMap, fmtContract, type ContractInfo } from "@/lib/contracts";
 
 export const Route = createFileRoute("/classificados")({
   head: () => ({
@@ -60,6 +61,7 @@ function ClassificadosPage() {
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [oferta, setOferta] = useState<Ofertaveis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [contracts, setContracts] = useState<Map<string, ContractInfo>>(new Map());
 
   const [open, setOpen] = useState(false);
   const [selPlayers, setSelPlayers] = useState<string[]>([]);
@@ -83,6 +85,22 @@ function ClassificadosPage() {
       if (!o.error && o.data) setOferta(o.data as Ofertaveis);
     }
   }, [teamId]);
+
+  // contrato (salário da temporada atual + anos restantes) dos jogadores exibidos
+  useEffect(() => {
+    const ids = [
+      ...(posts ?? []).flatMap((p) => p.items.map((it) => it.player_id).filter((x): x is string => !!x)),
+      ...(oferta?.players.map((p) => p.player_id) ?? []),
+    ];
+    if (ids.length === 0) return;
+    let alive = true;
+    void fetchContractMap(ids).then((m) => {
+      if (alive) setContracts(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [posts, oferta]);
 
   useEffect(() => {
     if (ready) void load();
@@ -166,7 +184,7 @@ function ClassificadosPage() {
                         <span className="font-medium">{p.full_name}</span>
                         <span className="text-xs text-muted-foreground">{p.position ?? "—"}</span>
                         <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                          {p.salary ? fmtMoneyShort(p.salary) : ""}
+                          {fmtContract(contracts.get(p.player_id) ?? (p.salary ? { salary: p.salary, years: 0 } : null))}
                         </span>
                       </label>
                     </li>
@@ -264,9 +282,12 @@ function ClassificadosPage() {
                         <span className="font-medium">{it.full_name}</span>
                       )}
                       <span className="ml-1.5 text-xs text-muted-foreground">{it.position ?? "—"}</span>
-                      {it.salary ? (
-                        <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{fmtMoneyShort(it.salary)}</span>
-                      ) : null}
+                      {(() => {
+                        const c = (it.player_id && contracts.get(it.player_id)) || (it.salary ? { salary: it.salary, years: 0 } : null);
+                        return c ? (
+                          <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{fmtContract(c)}</span>
+                        ) : null;
+                      })()}
                     </li>
                   ) : (
                     <li key={`pk-${it.pick_id}`} className="rounded-md border bg-muted/40 px-2.5 py-1 text-sm">
