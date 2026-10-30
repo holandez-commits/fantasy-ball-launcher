@@ -46,7 +46,7 @@ type Mov = {
   items: MovItem[];
 };
 
-const POLL_MS = 20_000;
+const POLL_MS = 120_000; // 2 min (s19: era 20 s)
 const PAGE_SIZE = 30;
 
 type Filtros = { months: string[]; teams: { id: string; name: string }[] };

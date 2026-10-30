@@ -28,7 +28,7 @@ export const CATEGORY_LABELS: Record<string, { label: string; hint: string }> = 
 };
 
 const EMPTY: NotificationsPayload = { unread: 0, total: 0, items: [] };
-const POLL_MS = 20_000;
+const POLL_MS = 120_000; // 2 min (s19: era 20 s). Também recarrega ao voltar para a aba e ao marcar como lida.
 const CHANGED_EVENT = "notifications:changed";
 
 export function notifyChanged() {
