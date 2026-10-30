@@ -129,6 +129,14 @@ function AdminMercadoPage() {
   const [auto, setAuto] = useState<{ enabled: boolean; last_run_at: string | null; last_run_result: string | null } | null>(null);
   const [togglingAuto, setTogglingAuto] = useState(false);
   const [irPainel, setIrPainel] = useState<IrPainelRow[] | null>(null);
+  const [mail, setMail] = useState<{
+    enabled: boolean;
+    recipient: string;
+    pending: number;
+    last_run_at: string | null;
+    last_run_result: string | null;
+  } | null>(null);
+  const [togglingMail, setTogglingMail] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -404,6 +412,28 @@ function AdminMercadoPage() {
   useEffect(() => {
     if (ready) void loadIrPainel();
   }, [ready, loadIrPainel]);
+
+  const loadMail = useCallback(async () => {
+    const { data, error } = await callRpc("get_email_automation");
+    if (!error && data) setMail(data as NonNullable<typeof mail>);
+  }, []);
+
+  useEffect(() => {
+    if (ready) void loadMail();
+  }, [ready, loadMail]);
+
+  async function toggleMail() {
+    if (!mail) return;
+    setTogglingMail(true);
+    setResult(null);
+    const { data, error } = await callRpc("set_email_automation", { _enabled: !mail.enabled });
+    setTogglingMail(false);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: typeof data === "string" ? data : "Atualizado." });
+      await loadMail();
+    }
+  }
 
   async function toggleAuto() {
     if (!auto) return;
@@ -790,6 +820,37 @@ function AdminMercadoPage() {
           </div>
         )}
       </section>
+
+      {/* E-mail da liga (grupo) */}
+      {mail && (
+        <section className="mt-6 rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium">
+                E-mail das movimentações da liga:{" "}
+                {mail.enabled ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">ATIVO</span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">PAUSADO</span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                A cada 15 minutos, se houver novidade (troca, dispensa, contratação de FA, IR e volta do IR), vai um
+                único e-mail para {mail.recipient}. Pendentes agora: {mail.pending}.
+                {mail.last_run_at && (
+                  <>
+                    {" "}
+                    Último envio: {fmtDateTime(mail.last_run_at)} — {mail.last_run_result}
+                  </>
+                )}
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => void toggleMail()} disabled={togglingMail}>
+              {togglingMail ? "Alterando..." : mail.enabled ? "Pausar" : "Ativar"}
+            </Button>
+          </div>
+        </section>
+      )}
 
       {/* IR parcial: tempo sem reativar */}
       <section className="mt-6 rounded-lg border border-border bg-card p-4">

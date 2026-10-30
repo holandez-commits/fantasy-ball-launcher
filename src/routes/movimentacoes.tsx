@@ -32,6 +32,9 @@ type MovItem = {
   to: string | null;
   amount: number | null;
   pick: string | null;
+  pos?: string | null;
+  salary?: number | null;
+  years?: number | null;
 };
 type Mov = {
   id: string;
@@ -63,14 +66,27 @@ function typeTone(type: string): string {
   }
 }
 
+/** Troca: "Nome (SG/SF · $3,000,000 · 3 anos)" — só o que existir. */
+function playerDetail(it: MovItem): string {
+  const yrs = it.years ? (it.years === 1 ? "1 ano" : `${it.years} anos`) : null;
+  const parts = [it.pos, it.salary ? fmtMoney(it.salary) : null, yrs].filter(Boolean);
+  return parts.length ? ` (${parts.join(" · ")})` : "";
+}
+
 function assetLabel(it: MovItem): string {
-  if (it.asset_type === "player") return it.player ?? "—";
+  if (it.asset_type === "player") return `${it.player ?? "—"}${playerDetail(it)}`;
   if (it.asset_type === "pick") return it.pick ? `Pick ${it.pick}` : "Pick";
   return `Multa ${fmtMoney(it.amount ?? 0)}`;
 }
 
 /** Linha-resumo pra movimentações de um time só (dispensa / IR / contratação). */
-function singleTeamSummary(m: Mov): { team: string; verb: string; player: string; extra: string[] } {
+function singleTeamSummary(m: Mov): {
+  team: string;
+  verb: string;
+  player: string;
+  pos: string | null;
+  extra: string[];
+} {
   const p = m.items.find((i) => i.asset_type === "player");
   const verb =
     m.type === "release"
@@ -88,7 +104,13 @@ function singleTeamSummary(m: Mov): { team: string; verb: string; player: string
   const extra = m.items
     .filter((i) => i.asset_type !== "player" && i.amount != null)
     .map((i) => `Multa ${fmtMoney(i.amount ?? 0)}`);
-  return { team, verb, player: p?.player ?? "—", extra };
+  return {
+    team,
+    verb,
+    player: p?.player ?? "—",
+    pos: m.type === "release" ? (p?.pos ?? null) : null, // dispensa mostra a posição
+    extra,
+  };
 }
 
 /** "2026-10" -> "Outubro de 2026". */
@@ -344,6 +366,7 @@ function MovimentacoesPage() {
                     <p className="text-sm">
                       <span className="font-semibold">{s.team}</span> {s.verb}{" "}
                       <span className="font-semibold">{s.player}</span>
+                      {s.pos && <span className="text-muted-foreground"> ({s.pos})</span>}
                       {s.extra.length > 0 && (
                         <span className="text-muted-foreground"> · {s.extra.join(" · ")}</span>
                       )}

@@ -1,0 +1,8 @@
+-- s19: e-mail das movimentações da liga (grupo bola_presa_fantasy@googlegroups.com). Já aplicado em PROD via MCP.
+-- Tabelas: email_outbox (fila), email_automation (1 linha: enabled [padrão FALSE], recipient, from_address, cron_secret, last_run*).
+-- transactions.email_snapshot (jsonb): contrato/multas da dispensa, gravado por executar_dispensa_core antes do delete.
+-- Gatilhos -> email_enqueue(kind, happened_at, dedupe, data): trg_email_tx_executed (trade/release/ir; hora da troca = último aceite dos GMs,
+--   dispensa/IR = created_at), trg_email_signing_item (contratação = executed_at da consolidação), trg_email_ir_return (roster_entries IR->active).
+-- Job pg_cron 'email-digest' (*/15 * * * *) -> email_digest_tick(): só chama a Edge Function se enabled e houver pendência.
+-- Edge Function enviar-resumo-liga (verify_jwt=false; autentica por header x-cron-secret = email_automation.cron_secret); secret RESEND_API_KEY.
+-- RPCs admin: get_email_automation(), set_email_automation(bool). Pausar por SQL: update email_automation set enabled=false;

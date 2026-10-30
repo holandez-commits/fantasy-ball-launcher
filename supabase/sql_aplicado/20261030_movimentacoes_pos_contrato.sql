@@ -1,0 +1,3 @@
+-- s19: get_movimentacoes_pagina devolve em cada item 'pos', 'salary', 'years' (CREATE OR REPLACE, mesma assinatura).
+-- pos: roster_entries da temporada da tx > email_snapshot da dispensa > última weekly_rosters. salary/years: contrato atual (roster_contract_years)
+-- ou snapshot da dispensa. Dispensas antigas (sem snapshot e fora das fotos) ficam sem posição.
