@@ -55,15 +55,26 @@ export function multaDoAno(salary: number): number {
 
 export type ContractYear = { season_label: string; salary: number };
 
+/** Calouro: os 2 últimos anos do contrato não geram multa (mesma regra do banco). */
+export function anosIsentosCalouro(years: ContractYear[] | null | undefined, calouro: boolean): string[] {
+  if (!calouro) return [];
+  const labels = (years ?? []).map((y) => y.season_label).sort((a, b) => a.localeCompare(b));
+  return labels.slice(-2);
+}
+
 /** Prévia da multa total de uma dispensa, com a quebra por ano (só anos > 0). */
-export function previaMulta(years: ContractYear[]): {
+export function previaMulta(years: ContractYear[], calouro = false): {
   porAno: { label: string; amount: number }[];
+  /** anos sem multa por contrato de calouro (últimos 2 do contrato). */
+  isentos: string[];
   total: number;
   anos: number;
   /** valor por ano quando é igual em todos os anos; null se varia (ou sem multa). */
   anoUniforme: number | null;
 } {
+  const isentos = anosIsentosCalouro(years, calouro);
   const porAno = (years ?? [])
+    .filter((y) => !isentos.includes(y.season_label))
     .map((y) => ({ label: y.season_label, amount: multaDoAno(y.salary) }))
     .filter((x) => x.amount > 0)
     .sort((a, b) => a.label.localeCompare(b.label));
@@ -71,7 +82,7 @@ export function previaMulta(years: ContractYear[]): {
   const anos = porAno.length;
   const anoUniforme =
     anos > 0 && porAno.every((p) => p.amount === porAno[0].amount) ? porAno[0].amount : null;
-  return { porAno, total, anos, anoUniforme };
+  return { porAno, isentos, total, anos, anoUniforme };
 }
 
 /** Resumo compacto da multa pra uma coluna/linha só (ex. tela admin). */
