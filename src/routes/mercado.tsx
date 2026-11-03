@@ -55,6 +55,7 @@ type RosterPlayer = {
   multaAnos: number;
   multaAnoUniforme: number | null;
   multaTotal: number;
+  calouro: boolean;
 };
 
 type IrPlayer = {
@@ -251,7 +252,7 @@ function MercadoPage() {
 
       const reRes = await db
         .from("roster_entries")
-        .select("id, player_id, position, status, ir_since_season, ir_since, ir_type, player:players(full_name)")
+        .select("id, player_id, position, status, ir_since_season, ir_since, ir_type, contrato_calouro, player:players(full_name)")
         .eq("team_id", teamId)
         .eq("season", cur.start_year)
         .in("status", ["active", "injured_reserve"]);
@@ -264,6 +265,7 @@ function MercadoPage() {
         ir_since_season: number | null;
         ir_since: string | null;
         ir_type: string | null;
+        contrato_calouro: boolean | null;
         player: { full_name: string } | null;
       }[];
 
@@ -289,7 +291,8 @@ function MercadoPage() {
               .filter((c) => c.roster_entry_id === e.id)
               .map((c) => ({ season_label: c.season_label, salary: c.salary }));
             const currentSalary = years.find((y) => y.season_label === cur.label)?.salary ?? 0;
-            const prv = previaMulta(years);
+            const calouro = !!e.contrato_calouro;
+            const prv = previaMulta(years, calouro);
             return {
               entryId: e.id,
               playerId: e.player_id,
@@ -300,6 +303,7 @@ function MercadoPage() {
               multaAnos: prv.anos,
               multaAnoUniforme: prv.anoUniforme,
               multaTotal: prv.total,
+              calouro,
             };
           })
           .sort((a, b) => a.name.localeCompare(b.name)),
@@ -644,7 +648,17 @@ function MercadoPage() {
                             i % 2 === 1 ? "bg-muted/10" : "",
                           )}
                         >
-                          <td className="px-4 py-2.5 font-medium">{p.name}</td>
+                          <td className="px-4 py-2.5 font-medium">
+                            {p.name}
+                            {p.calouro && (
+                              <span
+                                className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400"
+                                title="Contrato de calouro: os 2 últimos anos não geram multa"
+                              >
+                                calouro
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5 text-muted-foreground">{p.position ?? "—"}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
                             {p.currentSalary ? fmtMoney(p.currentSalary) : "—"}
@@ -850,7 +864,7 @@ function MercadoPage() {
                       Multa estimada por ano
                     </div>
                     <ul className="space-y-0.5">
-                      {previaMulta(relTarget.years).porAno.map((y) => (
+                      {previaMulta(relTarget.years, relTarget.calouro).porAno.map((y) => (
                         <li key={y.label} className="flex justify-between tabular-nums">
                           <span>{y.label}</span>
                           <span className="text-amber-600 dark:text-amber-400">
@@ -866,7 +880,12 @@ function MercadoPage() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Sem multa prevista (salário na faixa isenta).
+                    Sem multa prevista ({relTarget?.calouro ? "contrato de calouro ou salário na faixa isenta" : "salário na faixa isenta"}).
+                  </p>
+                )}
+                {relTarget?.calouro && (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    Contrato de calouro: sem multa em {previaMulta(relTarget.years, true).isentos.join(" e ")}.
                   </p>
                 )}
               </div>

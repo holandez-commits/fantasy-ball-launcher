@@ -26,6 +26,7 @@ type RosterEntry = {
   position: string | null;
   status: string;
   ir_type?: string | null;
+  contrato_calouro?: boolean | null;
   player: { full_name: string; espn_id: string | null } | null;
   contract_years: { season_label: string; salary: number }[];
 };
@@ -296,6 +297,9 @@ function RosterTable({
             const salaryMap = Object.fromEntries(
               (entry.contract_years ?? []).map((c) => [c.season_label, c.salary])
             );
+            const calouroIsentos = entry.contrato_calouro
+              ? Object.keys(salaryMap).sort().slice(-2)
+              : [];
             return (
               <tr
                 key={entry.id}
@@ -343,7 +347,16 @@ function RosterTable({
                 </td>
                 <td className="px-4 py-2.5 text-muted-foreground">{entry.position ?? "—"}</td>
                 {CONTRACT_YEARS.map((y) => (
-                  <td key={y} className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                  <td
+                    key={y}
+                    className={cn(
+                      "px-3 py-2.5 text-right tabular-nums",
+                      calouroIsentos.includes(y)
+                        ? "font-medium text-red-600 dark:text-red-400"
+                        : "text-muted-foreground"
+                    )}
+                    title={calouroIsentos.includes(y) ? "Contrato de calouro: dispensa sem multa neste ano" : undefined}
+                  >
                     {salaryMap[y] ? fmtSalary(capSalaryOf(entry, y, salaryMap[y])) : "—"}
                   </td>
                 ))}
@@ -408,6 +421,12 @@ function RosterTable({
           )}
         </tfoot>
       </table>
+      {all.some((e) => e.contrato_calouro) && (
+        <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
+          <span className="font-medium text-red-600 dark:text-red-400">Salário em vermelho</span> = contrato de calouro:
+          dispensa sem multa nos 2 últimos anos.
+        </p>
+      )}
       {picks.some((p) => p.round === 1) && (
         <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
           1ª rodada:{" "}
@@ -747,7 +766,7 @@ function TimePage() {
       // 4. Elenco
       const { data: rosterData } = await supabase
         .from("roster_entries")
-        .select("id, position, status, ir_type, player:players(full_name, espn_id)")
+        .select("id, position, status, ir_type, contrato_calouro, player:players(full_name, espn_id)")
         .eq("team_id", t.id)
         .eq("season", currentSeason.start_year)
         .order("status");
