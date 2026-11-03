@@ -208,6 +208,9 @@ function ClassificadosPage() {
                   ))}
                   {oferta.picks.length === 0 && <li className="text-sm text-muted-foreground">Nenhuma pick disponível.</li>}
                 </ul>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  A 1ª própria bloqueada pela regra (nunca 2 anos seguidos sem ela) não pode ser anunciada.
+                </p>
               </div>
             </div>
           )}

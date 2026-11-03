@@ -44,7 +44,7 @@ type PlayerAsset = {
   years: number;
   espnId: string | null;
 };
-type PickAsset = { kind: "pick"; id: string; label: string; origin: string | null };
+type PickAsset = { kind: "pick"; id: string; label: string; origin: string | null; lock?: string | null };
 // Multa consolidada por ano: id = "<time>|<ano>" (único entre os times da troca); parts = linhas reais de team_penalties que a compõem.
 type PenaltyAsset = {
   kind: "penalty";
@@ -118,6 +118,16 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
     .eq("current_team_id", teamId)
     .eq("is_used", false)
     .eq("disputed", false);
+  // 1ª própria bloqueada (regra: nunca 2 anos seguidos sem a própria 1ª)
+  const lockById: Record<string, string> = {};
+  try {
+    const { data: lk } = await (db as any).rpc("get_picks_proprias_status");
+    for (const r of (lk ?? []) as { pick_id: string; locked: boolean; reason: string | null }[]) {
+      if (r.locked) lockById[r.pick_id] = r.reason ?? "regra da 1ª própria";
+    }
+  } catch {
+    /* sem o bloqueio visual; o banco continua validando */
+  }
   const picks: PickAsset[] = ((pkRes.data ?? []) as {
     id: string;
     round: number;
@@ -130,6 +140,7 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
       id: p.id,
       label: `Pick ${p.round}ª · ${p.season?.label ?? "—"}`,
       origin: p.original_team?.name ?? null,
+      lock: lockById[p.id] ?? null,
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -616,7 +627,19 @@ function TeamPanel({
             ),
           )}
           {assets.picks.map((p) =>
-            row(
+            p.lock ? (
+              <div key={akey(p)} className="px-4 py-2.5">
+                <label className="flex cursor-not-allowed items-center gap-3 text-sm">
+                  <input type="checkbox" disabled className="h-4 w-4" />
+                  <span className="flex-1 text-red-600 dark:text-red-400">
+                    {p.label}
+                    <span className="ml-1 text-[10px] uppercase tracking-wide">
+                      · indisponível para troca ({p.lock})
+                    </span>
+                  </span>
+                </label>
+              </div>
+            ) : row(
               p,
               <span>
                 {p.label}

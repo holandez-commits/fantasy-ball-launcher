@@ -69,6 +69,9 @@ type Season = { id: string; label: string; start_year: number; is_completed: boo
 
 type Penalty = { amount: number; season: { label: string } | null };
 
+/** Status de bloqueio da 1ª própria (regra: nunca 2 anos seguidos sem a própria 1ª). */
+type PickLock = { locked: boolean; reason: string | null };
+
 type DraftPick = {
   id: string;
   round: number;
@@ -215,10 +218,12 @@ function RosterTable({
   entries,
   penaltiesByYear,
   picks,
+  pickLocks,
 }: {
   entries: RosterEntry[];
   penaltiesByYear: Record<string, number>;
   picks: DraftPick[];
+  pickLocks: Record<string, PickLock>;
 }) {
   // Ordem fixa por posição (titular→pivô); posição desconhecida vai pro fim.
   const POS_ORDER = ["PG", "PG/SG", "SG", "SG/SF", "SF", "SF/PF", "PF", "PF/C", "C"];
@@ -394,7 +399,7 @@ function RosterTable({
                 <td key={y} className="px-3 py-2.5 text-right">
                   <div className="flex flex-col items-end gap-1">
                     {(picksByYear[y] ?? []).map((p) => (
-                      <PickChip key={p.id} pick={p} />
+                      <PickChip key={p.id} pick={p} lock={pickLocks[p.id]} />
                     ))}
                   </div>
                 </td>
@@ -403,6 +408,14 @@ function RosterTable({
           )}
         </tfoot>
       </table>
+      {picks.some((p) => p.round === 1) && (
+        <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
+          1ª rodada:{" "}
+          <span className="font-medium text-red-600 dark:text-red-400">vermelho</span> = própria 1ª indisponível para
+          troca (regra: nunca 2 anos seguidos sem a própria 1ª) ·{" "}
+          <span className="font-medium text-emerald-700 dark:text-emerald-400">verde</span> = 1ª que pode ser trocada.
+        </p>
+      )}
       {overflowPicks.length > 0 && (
         <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
           Outras picks:{" "}
@@ -428,27 +441,38 @@ function lastWord(name: string): string {
   return w[w.length - 1];
 }
 
-/** Chip de uma pick: "<rodada>ª <time de origem>". 1ª rodada em destaque; disputa em âmbar. */
-function PickChip({ pick }: { pick: DraftPick }) {
+/**
+ * Chip de uma pick: "<rodada>ª <time de origem>".
+ * 1ª rodada: vermelho = própria 1ª bloqueada para troca; verde = 1ª que pode ser trocada. Disputa em âmbar.
+ */
+function PickChip({ pick, lock }: { pick: DraftPick; lock?: PickLock }) {
   const origin = pick.original_team?.name ? lastWord(pick.original_team.name) : "?";
   const first = pick.round === 1;
+  const locked = !!lock?.locked;
+  const base = pick.original_team?.name
+    ? `${pick.round}ª rodada · ${pick.original_team.name}${pick.disputed ? " · em disputa" : ""}`
+    : `${pick.round}ª rodada`;
+  const title = locked
+    ? `${base} · indisponível para troca (${lock?.reason ?? "regra da 1ª própria"})`
+    : first
+      ? `${base} · pode ser trocada`
+      : base;
   return (
     <span
-      title={
-        pick.original_team?.name
-          ? `${pick.round}ª rodada · ${pick.original_team.name}${pick.disputed ? " · em disputa" : ""}`
-          : `${pick.round}ª rodada`
-      }
+      title={title}
       className={cn(
         "inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium",
         pick.disputed
           ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-          : first
-            ? "bg-red-500/10 text-red-600 dark:text-red-400"
-            : "bg-muted text-muted-foreground",
+          : locked
+            ? "bg-red-500/15 text-red-600 ring-1 ring-red-500/30 dark:text-red-400"
+            : first
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              : "bg-muted text-muted-foreground",
       )}
     >
       {pick.round}ª {origin}
+      {locked && <span className="text-[9px] uppercase tracking-wide">bloq.</span>}
       {pick.disputed && <span className="text-[9px] uppercase tracking-wide">disp.</span>}
     </span>
   );
@@ -655,6 +679,7 @@ function TimePage() {
   const [roster, setRoster]                 = useState<RosterEntry[]>([]);
   const [penaltiesByYear, setPenaltiesByYear] = useState<Record<string, number>>({});
   const [picks, setPicks]                   = useState<DraftPick[]>([]);
+  const [pickLocks, setPickLocks]             = useState<Record<string, PickLock>>({});
   const [last5, setLast5]                   = useState<GameResult[]>([]);
   const [last5Stats, setLast5Stats]         = useState<TeamStatRow[]>([]);
   const [allSeasonStats, setAllSeasonStats] = useState<TeamStatRow[]>([]);
@@ -772,6 +797,18 @@ function TimePage() {
         (x.pick_number ?? Infinity) - (y.pick_number ?? Infinity)
       );
       setPicks(sortedPicks);
+
+      // Bloqueio da 1ª própria (RPC pública; some sozinho se a rotina falhar)
+      try {
+        const { data: lockData } = await (supabase as any).rpc("get_picks_proprias_status");
+        const lm: Record<string, PickLock> = {};
+        for (const r of ((lockData ?? []) as { pick_id: string; locked: boolean; reason: string | null }[])) {
+          lm[r.pick_id] = { locked: r.locked, reason: r.reason };
+        }
+        setPickLocks(lm);
+      } catch {
+        setPickLocks({});
+      }
 
       setLoading(false);
     })();
@@ -926,7 +963,7 @@ function TimePage() {
         {/* 1. Elenco */}
         <section>
           <SectionTitle title={`Elenco ${season?.label ?? ""}`} />
-          <RosterTable entries={roster} penaltiesByYear={penaltiesByYear} picks={picks} />
+          <RosterTable entries={roster} penaltiesByYear={penaltiesByYear} picks={picks} pickLocks={pickLocks} />
         </section>
 
         {/* Seletor da temporada das estatísticas (elenco acima segue a temporada corrente) */}
