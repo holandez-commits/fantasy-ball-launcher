@@ -3,6 +3,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequireAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -309,6 +319,18 @@ function EscalarPage() {
     return { slots, error: null };
   }
 
+  // mesmo jogador como titular e reserva na MESMA posição (permitido, mas quase sempre erro)
+  const duplicatas = useMemo(() => {
+    const out: { pos: string; name: string }[] = [];
+    for (const pos of positions) {
+      const t = selection[slotKey(pos.id, "titular")];
+      const r = selection[slotKey(pos.id, "reserva")];
+      if (t && r && t === r) out.push({ pos: pos.code, name: names[t] ?? "Jogador" });
+    }
+    return out;
+  }, [positions, selection, names]);
+  const [dupOpen, setDupOpen] = useState(false);
+
   async function save(scope: "existentes" | "todos") {
     if (!teamId || !lock) return;
     setResult(null);
@@ -461,9 +483,10 @@ function EscalarPage() {
                 );
               }
               const opts = optionsFor(pos, type);
+              const dup = duplicatas.some((d) => d.pos === pos.code);
               return (
                 <Select key={type} value={value ?? NONE} onValueChange={(v) => setSlot(pos, type, v)}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={cn("w-full", dup && "border-amber-500 bg-amber-500/10")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -484,11 +507,44 @@ function EscalarPage() {
 
       {editable && (
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button onClick={() => void save("todos")} disabled={saving || gameIds.length === 0}>
+          <Button
+            onClick={() => (duplicatas.length > 0 ? setDupOpen(true) : void save("todos"))}
+            disabled={saving || gameIds.length === 0}
+          >
             {saving ? "Salvando..." : "Salvar escalação"}
           </Button>
         </div>
       )}
+
+      {editable && duplicatas.length > 0 && (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
+          Atenção: {duplicatas.map((d) => `${d.name} (${d.pos})`).join(", ")} está como titular e reserva na
+          mesma posição.
+        </p>
+      )}
+
+      <AlertDialog open={dupOpen} onOpenChange={setDupOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mesmo jogador como titular e reserva</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {duplicatas.map((d) => (
+                  <p key={d.pos}>
+                    <span className="font-medium text-foreground">{d.name}</span> está como titular e como
+                    reserva em <span className="font-medium text-foreground">{d.pos}</span>.
+                  </p>
+                ))}
+                <p>Isso é permitido, mas normalmente é engano. Quer salvar assim mesmo?</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar e corrigir</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void save("todos")}>Salvar assim mesmo</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {result && (
         <Alert variant={result.ok ? "default" : "destructive"} className="mt-6">

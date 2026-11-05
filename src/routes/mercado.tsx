@@ -22,6 +22,7 @@ import {
 } from "@/lib/market";
 import { MarketStateBanner } from "@/components/MarketStateBanner";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -592,32 +593,42 @@ function MercadoPage() {
                         <div className="flex gap-2">
                           {awaitingMe && (
                             <>
-                              <Button
+                              <ConfirmButton
                                 size="sm"
-                                onClick={() => void aceitarTroca(t.id, true)}
+                                title="Aceitar esta troca?"
+                                description={<p>Confira os itens da proposta antes de confirmar o aceite.</p>}
+                                confirmLabel="Aceitar troca"
+                                onConfirm={() => aceitarTroca(t.id, true)}
                                 disabled={busyTrade === t.id}
                               >
                                 {busyTrade === t.id ? "..." : "Aceitar"}
-                              </Button>
-                              <Button
+                              </ConfirmButton>
+                              <ConfirmButton
                                 size="sm"
                                 variant="outline"
-                                onClick={() => void aceitarTroca(t.id, false)}
+                                title="Recusar esta troca?"
+                                description={<p>A proposta será recusada.</p>}
+                                confirmLabel="Recusar troca"
+                                onConfirm={() => aceitarTroca(t.id, false)}
                                 disabled={busyTrade === t.id}
                               >
                                 Recusar
-                              </Button>
+                              </ConfirmButton>
                             </>
                           )}
                           {canCancel && (
-                            <Button
+                            <ConfirmButton
                               size="sm"
                               variant="outline"
-                              onClick={() => void cancelarTroca(t.id)}
+                              title="Cancelar esta proposta de troca?"
+                              description={<p>A proposta deixa de valer para todos os times envolvidos.</p>}
+                              confirmLabel="Cancelar proposta"
+                              cancelLabel="Voltar"
+                              onConfirm={() => cancelarTroca(t.id)}
                               disabled={busyTrade === t.id}
                             >
                               Cancelar
-                            </Button>
+                            </ConfirmButton>
                           )}
                         </div>
                       </div>
@@ -793,14 +804,17 @@ function MercadoPage() {
                                 sem vaga: dispense alguém antes
                               </span>
                             ) : (
-                              <Button
+                              <ConfirmButton
                                 variant="outline"
                                 size="sm"
                                 disabled={submitting}
-                                onClick={() => void pedirVoltaIr(p.playerId)}
+                                title={`Pedir a volta de ${p.name} do IR?`}
+                                description={<p>O pedido segue para aprovação do admin.</p>}
+                                confirmLabel="Pedir volta"
+                                onConfirm={() => pedirVoltaIr(p.playerId)}
                               >
                                 Pedir volta
-                              </Button>
+                              </ConfirmButton>
                             )}
                           </td>
                         </tr>

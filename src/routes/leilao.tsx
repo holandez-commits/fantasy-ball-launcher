@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
 import {
   db,
@@ -10,6 +10,7 @@ import {
   type CurrentSeason,
 } from "@/lib/market";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,6 +44,9 @@ function LeilaoPage() {
   const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
   const [week, setWeek] = useState<number | null>(null);
   const [capAvail, setCapAvail] = useState<number | null>(null);
+  // lances = vagas livres do time (15 - ativos). restantes = vagas - lances ativos na semana.
+  const [lances, setLances] = useState<{ vagas: number; ativos: number; restantes: number } | null>(null);
+  const resultRef = useRef<HTMLDivElement | null>(null);
   const [fas, setFas] = useState<FA[]>([]);
   const [myBids, setMyBids] = useState<Record<string, MyBid>>({});
   const [inputs, setInputs] = useState<Record<string, string>>({});
@@ -86,6 +90,14 @@ function LeilaoPage() {
       const capRes = await callRpc("team_cap_usage", { _season_id: cur.id });
       const capRows = (capRes.data ?? []) as { team_id: string; available: number }[];
       setCapAvail(capRows.find((c) => c.team_id === teamId)?.available ?? null);
+
+      const lanRes = await callRpc("lances_disponiveis", { _week: wk });
+      if (!lanRes.error && lanRes.data) {
+        const d = lanRes.data as { vagas_livres: number; lances_ativos: number; restantes: number };
+        setLances({ vagas: d.vagas_livres, ativos: d.lances_ativos, restantes: d.restantes });
+      } else {
+        setLances(null); // sem a contagem na tela; o servidor continua validando
+      }
 
       // pool de FA = players fora de qualquer elenco da temporada (elenco ao vivo)
       const rosterRes = await db.from("roster_entries").select("player_id").eq("season", cur.start_year);
@@ -189,6 +201,13 @@ function LeilaoPage() {
     }
   }
 
+  // mensagem de resultado sempre à vista (a página é longa)
+  useEffect(() => {
+    if (result) resultRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [result]);
+
+  const semLance = lances != null && lances.restantes <= 0;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = q ? fas.filter((f) => f.name.toLowerCase().includes(q)) : fas;
@@ -234,10 +253,12 @@ function LeilaoPage() {
       </p>
 
       {result && (
-        <Alert variant={result.ok ? "default" : "destructive"} className="mt-6">
-          <AlertTitle>{result.ok ? "Feito" : "Não foi possível"}</AlertTitle>
-          <AlertDescription>{result.message}</AlertDescription>
-        </Alert>
+        <div ref={resultRef} className="scroll-mt-24">
+          <Alert variant={result.ok ? "default" : "destructive"} className="mt-6">
+            <AlertTitle>{result.ok ? "Feito" : "Não foi possível"}</AlertTitle>
+            <AlertDescription>{result.message}</AlertDescription>
+          </Alert>
+        </div>
       )}
       {loadError && (
         <Alert variant="destructive" className="mt-6">
@@ -271,6 +292,24 @@ function LeilaoPage() {
             <span className="ml-2 text-xs text-muted-foreground">
               (um lance isolado não pode passar disso)
             </span>
+            {lances && (
+              <div
+                className={cn(
+                  "mt-2 border-t border-border/60 pt-2",
+                  semLance && "text-amber-700 dark:text-amber-400",
+                )}
+              >
+                Lances disponíveis:{" "}
+                <span className="font-semibold tabular-nums">
+                  {lances.restantes} de {lances.vagas}
+                </span>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {lances.vagas === 0
+                    ? "(15 jogadores ativos: sem vaga, sem lances)"
+                    : `(1 lance por vaga livre; você usou ${lances.ativos}. Retire um lance para liberar outro)`}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="mt-6">
@@ -306,7 +345,7 @@ function LeilaoPage() {
                 onChange={(e) => setNovoValor(e.target.value)}
                 className="w-32"
               />
-              <Button size="sm" onClick={() => void darLanceNovo()} disabled={novoBusy}>
+              <Button size="sm" onClick={() => void darLanceNovo()} disabled={novoBusy || semLance}>
                 {novoBusy ? "..." : "Dar lance"}
               </Button>
             </div>
@@ -363,19 +402,22 @@ function LeilaoPage() {
                       <Button
                         size="sm"
                         onClick={() => void darLance(f.playerId)}
-                        disabled={busyRow}
+                        disabled={busyRow || (semLance && !(bid && bid.status === "active"))}
                       >
                         {busyRow ? "..." : bid && bid.status === "active" ? "Atualizar" : "Dar lance"}
                       </Button>
                       {bid && bid.status === "active" && (
-                        <Button
+                        <ConfirmButton
                           size="sm"
                           variant="outline"
-                          onClick={() => void retirar(bid.bidId, f.playerId)}
+                          title={`Retirar o lance em ${f.name}?`}
+                          description={<p>Seu lance de {fmtMoney(bid.salaryOffer)} sai do leilão e a vaga fica livre para outro lance.</p>}
+                          confirmLabel="Retirar lance"
+                          onConfirm={() => retirar(bid.bidId, f.playerId)}
                           disabled={busyRow}
                         >
                           Retirar
-                        </Button>
+                        </ConfirmButton>
                       )}
                     </li>
                   );

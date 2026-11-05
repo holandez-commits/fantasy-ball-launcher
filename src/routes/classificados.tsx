@@ -5,6 +5,7 @@ import { callRpc } from "@/lib/market";
 import { espnPlayerUrl } from "@/lib/links";
 import { timeAgo } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,7 +70,6 @@ function ClassificadosPage() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await callRpc("get_trade_block");
@@ -136,11 +136,6 @@ function ClassificadosPage() {
   }
 
   async function retirar(id: string) {
-    if (confirmId !== id) {
-      setConfirmId(id);
-      return;
-    }
-    setConfirmId(null);
     const { error: err } = await callRpc("retirar_trade_block", { _post_id: id });
     if (err) setError(err.message);
     await load();
@@ -233,9 +228,21 @@ function ClassificadosPage() {
             <p className="text-xs text-muted-foreground">
               {selPlayers.length + selPicks.length} item(ns) · os outros GMs recebem um aviso no sino
             </p>
-            <Button size="sm" disabled={saving || selPlayers.length + selPicks.length === 0} onClick={() => void publicar()}>
+            <ConfirmButton
+              size="sm"
+              disabled={saving || selPlayers.length + selPicks.length === 0}
+              title="Publicar este anúncio?"
+              description={
+                <p>
+                  {selPlayers.length + selPicks.length} item(ns) vão para os classificados e os outros GMs
+                  recebem um aviso no sino.
+                </p>
+              }
+              confirmLabel="Publicar"
+              onConfirm={publicar}
+            >
               {saving ? "Publicando…" : "Publicar"}
-            </Button>
+            </ConfirmButton>
           </div>
         </section>
       )}
@@ -301,9 +308,16 @@ function ClassificadosPage() {
               </ul>
               <div className="mt-3 flex justify-end gap-2">
                 {p.mine ? (
-                  <Button size="sm" variant="outline" onClick={() => void retirar(p.id)}>
-                    {confirmId === p.id ? "Confirmar retirada" : "Retirar"}
-                  </Button>
+                  <ConfirmButton
+                    size="sm"
+                    variant="outline"
+                    title="Retirar este anúncio?"
+                    description={<p>O anúncio sai dos classificados.</p>}
+                    confirmLabel="Retirar"
+                    onConfirm={() => retirar(p.id)}
+                  >
+                    Retirar
+                  </ConfirmButton>
                 ) : teamId ? (
                   <Button size="sm" asChild>
                     <Link to="/trocar" search={{ com: p.team_id }}>

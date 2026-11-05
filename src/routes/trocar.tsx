@@ -13,6 +13,7 @@ import {
 } from "@/lib/market";
 import { MarketStateBanner } from "@/components/MarketStateBanner";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -793,9 +794,25 @@ function TrocarPage() {
                             ? "Troca válida"
                             : ""}
                   </span>
-                  <Button onClick={() => void propor()} disabled={!canPropose}>
+                  <ConfirmButton
+                    disabled={!canPropose}
+                    title="Enviar esta proposta de troca?"
+                    description={
+                      <>
+                        {summary.map((g) => (
+                          <p key={`${g.from}>${g.to}`}>
+                            <span className="font-medium text-foreground">{g.from}</span> envia para{" "}
+                            <span className="font-medium text-foreground">{g.to}</span>: {g.labels.join(" · ")}
+                          </p>
+                        ))}
+                        <p>Prazo de aceite: {fmtDeadline(deadline)}.</p>
+                      </>
+                    }
+                    confirmLabel="Enviar proposta"
+                    onConfirm={propor}
+                  >
                     {submitting ? "Enviando..." : `Propor troca (${count})`}
-                  </Button>
+                  </ConfirmButton>
                 </div>
               </div>
             </div>
