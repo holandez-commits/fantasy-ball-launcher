@@ -6,4 +6,15 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-export default defineConfig();
+export default defineConfig({
+  vite: {
+    build: {
+      rollupOptions: {
+        // O build do Cloudflare tem limite de 1024 arquivos abertos (ulimit -n, fixo).
+        // O padrão do Rollup 4 (1000 leituras em paralelo) + os ~1.700 ícones do lucide-react
+        // estouravam o limite: "EMFILE: too many open files" / "failed to resolve import".
+        maxParallelFileOps: 20,
+      },
+    },
+  },
+});
