@@ -136,7 +136,7 @@ function MercadoPage() {
     const [itRes, apRes] = await Promise.all([
       db
         .from("transaction_items")
-        .select("transaction_id, asset_type, player_id, pick_id, amount, from_team_id, to_team_id")
+        .select("transaction_id, asset_type, player_id, pick_id, source_penalty_id, amount, from_team_id, to_team_id")
         .in("transaction_id", ids),
       db
         .from("transaction_approvals")
@@ -148,6 +148,7 @@ function MercadoPage() {
       asset_type: string;
       player_id: string | null;
       pick_id: string | null;
+      source_penalty_id: string | null;
       amount: number | null;
       from_team_id: string | null;
       to_team_id: string | null;
@@ -167,7 +168,11 @@ function MercadoPage() {
     const playerIds = [...new Set(items.map((i) => i.player_id).filter(Boolean) as string[])];
     const pickIds = [...new Set(items.map((i) => i.pick_id).filter(Boolean) as string[])];
 
-    const [teamsRes, playersRes, picksRes] = await Promise.all([
+    const penaltyIds = [...new Set(items.map((i) => i.source_penalty_id).filter(Boolean) as string[])];
+    const [penRes, teamsRes, playersRes, picksRes] = await Promise.all([
+      penaltyIds.length
+        ? db.from("team_penalties").select("id, season:seasons(label)").in("id", penaltyIds)
+        : { data: [] },
       teamIds.length ? db.from("teams").select("id, name").in("id", teamIds) : { data: [] },
       playerIds.length ? db.from("players").select("id, full_name").in("id", playerIds) : { data: [] },
       pickIds.length
@@ -177,6 +182,12 @@ function MercadoPage() {
             .in("id", pickIds)
         : { data: [] },
     ]);
+    const penaltyYear = Object.fromEntries(
+      ((penRes.data ?? []) as { id: string; season: { label: string } | null }[]).map((p) => [
+        p.id,
+        p.season?.label ?? null,
+      ]),
+    );
     const teamName = Object.fromEntries(
       ((teamsRes.data ?? []) as { id: string; name: string }[]).map((t) => [t.id, t.name]),
     );
@@ -227,7 +238,7 @@ function MercadoPage() {
                 ? i.pick_id
                   ? pickLabel[i.pick_id] ?? "Pick"
                   : "Pick"
-                : `Multa ${fmtMoney(i.amount ?? 0)}`,
+                : `Multa ${i.source_penalty_id && penaltyYear[i.source_penalty_id] ? `${penaltyYear[i.source_penalty_id]} · ` : ""}${fmtMoney(i.amount ?? 0)}`,
           fromName: i.from_team_id ? teamName[i.from_team_id] ?? "—" : "—",
           toName: i.to_team_id ? teamName[i.to_team_id] ?? "—" : "—",
         })),
@@ -672,6 +683,11 @@ function MercadoPage() {
                               </span>
                             ) : (
                               <span className="text-amber-600 dark:text-amber-400">varia</span>
+                            )}
+                            {p.multaAnos > 0 && (
+                              <span className="block text-[10px] font-normal text-muted-foreground">
+                                {previaMulta(p.years, p.calouro).porAno.map((y) => y.label).join(", ")}
+                              </span>
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">

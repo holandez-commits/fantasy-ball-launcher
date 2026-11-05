@@ -114,8 +114,8 @@ function teamInitials(name: string): string {
 
 function fmtSalary(v: number) {
   if (!v || v === 0) return "—";
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  return `$${(v / 1_000).toFixed(0)}K`;
+  // em milhares, sem arredondar pra milhão: 1_850_000 -> "$1,850K"
+  return `$${Math.round(v / 1_000).toLocaleString("en-US")}K`;
 }
 
 function fmtSalaryFull(v: number) {
@@ -156,7 +156,8 @@ function TeamSelector({ teams, currentSlug }: { teams: TeamLite[]; currentSlug: 
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-full z-20 mt-1 w-72 max-h-80 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
             <ul className="py-1">
-              {teams.map((t) => {
+              {/* só times ativos; o time aberto continua listado mesmo se extinto */}
+              {teams.filter((t) => t.is_active || t.slug === currentSlug).map((t) => {
                 const active = t.slug === currentSlug;
                 return (
                   <li key={t.id}>

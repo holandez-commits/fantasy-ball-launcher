@@ -315,11 +315,14 @@ function TrocarPage() {
         itens.push({ asset_type: "pick", pick_id: id, from_team_id: sel.from, to_team_id: sel.to });
       } else {
         const amt = Math.round(Number(sel.amount));
+        const asset = assetsByTeam[sel.from]?.penalties.find((p) => p.id === id);
         if (!amt || amt < PENALTY_MIN) {
-          setResult({ ok: false, message: `Multa mínima por ano é ${fmtMoney(PENALTY_MIN)} (enviado).` });
+          setResult({
+            ok: false,
+            message: `${asset?.label ?? "Multa"}: mínimo por ano é ${fmtMoney(PENALTY_MIN)} (enviado).`,
+          });
           return;
         }
-        const asset = assetsByTeam[sel.from]?.penalties.find((p) => p.id === id);
         if (!asset) {
           setResult({ ok: false, message: "Multa não encontrada. Recarregue a página." });
           return;

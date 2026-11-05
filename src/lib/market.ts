@@ -30,8 +30,7 @@ export function fmtMoney(v: number | null | undefined): string {
 /** Abreviado pra espaços apertados: 1_350_000 -> "$1.4M". */
 export function fmtMoneyShort(v: number | null | undefined): string {
   if (!v) return "—";
-  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${Math.round(v / 1_000).toLocaleString("en-US")}K`;
 }
 
 // ─── Multa de dispensa (PRÉVIA no cliente) ───────────────────────────────────
@@ -90,10 +89,14 @@ export function fmtMultaResumo(prv: {
   anos: number;
   anoUniforme: number | null;
   total: number;
+  porAno?: { label: string; amount: number }[];
 }): string {
   if (prv.anos === 0) return "sem multa";
+  const anosTxt = prv.porAno?.length ? ` (${prv.porAno.map((x) => x.label).join(", ")})` : "";
   if (prv.anoUniforme != null)
-    return `${fmtMoney(prv.anoUniforme)}/ano × ${prv.anos} ${prv.anos > 1 ? "anos" : "ano"}`;
+    return `${fmtMoney(prv.anoUniforme)}/ano × ${prv.anos} ${prv.anos > 1 ? "anos" : "ano"}${anosTxt}`;
+  if (prv.porAno?.length)
+    return `${prv.porAno.map((x) => `${x.label} ${fmtMoney(x.amount)}`).join(" · ")} (total ${fmtMoney(prv.total)})`;
   return `varia (total ${fmtMoney(prv.total)})`;
 }
 

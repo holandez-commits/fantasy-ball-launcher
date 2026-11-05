@@ -37,6 +37,7 @@ type Item = {
   asset_type: string;
   player_id: string | null;
   pick_id: string | null;
+  source_penalty_id?: string | null;
   from_team_id: string | null;
   to_team_id: string | null;
   amount: number | null;
@@ -170,11 +171,21 @@ function AdminMercadoPage() {
         const itRes = await db
           .from("transaction_items")
           .select(
-            "transaction_id, asset_type, player_id, pick_id, from_team_id, to_team_id, amount",
+            "transaction_id, asset_type, player_id, pick_id, source_penalty_id, from_team_id, to_team_id, amount",
           )
           .in("transaction_id", txIds);
         if (itRes.error) throw new Error(itRes.error.message);
         items = (itRes.data ?? []) as Item[];
+      }
+
+      // ano (temporada) de cada multa trocada
+      const penaltyIds = [...new Set(items.map((i) => i.source_penalty_id).filter(Boolean) as string[])];
+      const penaltyYear: Record<string, string | null> = {};
+      if (penaltyIds.length > 0) {
+        const penRes = await db.from("team_penalties").select("id, season:seasons(label)").in("id", penaltyIds);
+        for (const p of (penRes.data ?? []) as { id: string; season: { label: string } | null }[]) {
+          penaltyYear[p.id] = p.season?.label ?? null;
+        }
       }
 
       const irRes = await db
@@ -329,7 +340,7 @@ function AdminMercadoPage() {
             ? i.pick_id
               ? pickLabel[i.pick_id] ?? "Pick"
               : "Pick"
-            : `Multa ${fmtMoney(i.amount ?? 0)}`;
+            : `Multa ${i.source_penalty_id && penaltyYear[i.source_penalty_id] ? `${penaltyYear[i.source_penalty_id]} · ` : ""}${fmtMoney(i.amount ?? 0)}`;
 
       const enrich = (
         t: Omit<

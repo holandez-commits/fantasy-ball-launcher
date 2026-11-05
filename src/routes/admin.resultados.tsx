@@ -146,9 +146,28 @@ function ResultadosPage() {
     () => [...new Set(weeksIndex.filter((w) => w.season_id === seasonId).map((w) => w.week_number))].sort((a, b) => a - b),
     [weeksIndex, seasonId],
   );
+  // Semana default = a atual: a 1ª semana da temporada que ainda tem jogo não finalizado
+  // (se tudo já está final, cai na última semana).
   useEffect(() => {
-    if (weekOptions.length && week == null) setWeek(weekOptions[0]);
-  }, [weekOptions, week]);
+    if (!seasonId || week != null || weekOptions.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("games")
+        .select("week_number")
+        .eq("season_id", seasonId)
+        .neq("status", "final")
+        .not("week_number", "is", null)
+        .order("week_number", { ascending: true })
+        .limit(1);
+      if (cancelled) return;
+      const w = (data as { week_number: number }[] | null)?.[0]?.week_number;
+      setWeek(w != null && weekOptions.includes(w) ? w : weekOptions[weekOptions.length - 1]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [seasonId, weekOptions, week]);
 
   async function loadGames() {
     if (!seasonId || week == null) return;

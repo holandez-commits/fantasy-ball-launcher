@@ -35,6 +35,7 @@ type MovItem = {
   pos?: string | null;
   salary?: number | null;
   years?: number | null;
+  penalty_season?: string | null;
 };
 type Mov = {
   id: string;
@@ -76,7 +77,12 @@ function playerDetail(it: MovItem): string {
 function assetLabel(it: MovItem): string {
   if (it.asset_type === "player") return `${it.player ?? "—"}${playerDetail(it)}`;
   if (it.asset_type === "pick") return it.pick ? `Pick ${it.pick}` : "Pick";
-  return `Multa ${fmtMoney(it.amount ?? 0)}`;
+  return multaLabel(it);
+}
+
+/** "Multa 26/27 · $500,000" — sempre com o ano da multa quando o banco informa. */
+function multaLabel(it: MovItem): string {
+  return `Multa ${it.penalty_season ? `${it.penalty_season} · ` : ""}${fmtMoney(it.amount ?? 0)}`;
 }
 
 /** Linha-resumo pra movimentações de um time só (dispensa / IR / contratação). */
@@ -103,7 +109,7 @@ function singleTeamSummary(m: Mov): {
   const team = (m.type === "signing" ? p?.to : p?.from) ?? p?.from ?? p?.to ?? "—";
   const extra = m.items
     .filter((i) => i.asset_type !== "player" && i.amount != null)
-    .map((i) => `Multa ${fmtMoney(i.amount ?? 0)}`);
+    .map((i) => multaLabel(i));
   return {
     team,
     verb,
