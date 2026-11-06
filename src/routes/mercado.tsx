@@ -582,6 +582,28 @@ function MercadoPage() {
                           </div>
                         ))}
                       </div>
+                      {t.deadline && t.status === "proposed" && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Prazo de aceite:{" "}
+                          <span
+                            className={cn(
+                              "font-medium",
+                              new Date(t.deadline).getTime() < Date.now()
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-foreground",
+                            )}
+                          >
+                            {new Date(t.deadline).toLocaleString("pt-BR", {
+                              timeZone: "America/Sao_Paulo",
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          {new Date(t.deadline).getTime() < Date.now() && " (vencido)"}
+                        </p>
+                      )}
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-xs text-muted-foreground">
                           {t.status === "accepted"

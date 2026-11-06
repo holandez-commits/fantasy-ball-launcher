@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { fetchContractMap, fmtContract, type ContractInfo } from "@/lib/contracts";
@@ -23,6 +24,24 @@ export const Route = createFileRoute("/classificados")({
 });
 
 const NOTE_MAX = 200;
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+/** Valor de <input type="datetime-local"> (horário local) para uma data. */
+function toLocalInput(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+const defaultExpires = () => toLocalInput(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+/** Limite do prazo: 1 mês a partir de agora. */
+function maxExpires(): Date {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1);
+  return d;
+}
+function fmtPrazo(v: string | Date): string {
+  const d = typeof v === "string" ? new Date(v) : v;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
 
 type BlockItem = {
   asset_type: "player" | "pick";
@@ -44,6 +63,7 @@ type Post = {
   team_slug: string;
   note: string | null;
   created_at: string;
+  expires_at: string | null;
   mine: boolean;
   items: BlockItem[];
 };
@@ -68,6 +88,7 @@ function ClassificadosPage() {
   const [selPlayers, setSelPlayers] = useState<string[]>([]);
   const [selPicks, setSelPicks] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  const [expiresAt, setExpiresAt] = useState<string>(defaultExpires());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -117,11 +138,21 @@ function ClassificadosPage() {
       setFormError("Escolha pelo menos um jogador ou uma pick.");
       return;
     }
+    const exp = new Date(expiresAt);
+    if (!expiresAt || Number.isNaN(exp.getTime()) || exp.getTime() <= Date.now()) {
+      setFormError("Informe um prazo futuro para o anúncio.");
+      return;
+    }
+    if (exp.getTime() > maxExpires().getTime()) {
+      setFormError("O prazo do anúncio pode ser de no máximo 1 mês.");
+      return;
+    }
     setSaving(true);
     const { error: err } = await callRpc("publicar_trade_block", {
       _players: selPlayers,
       _picks: selPicks,
       _note: note.trim() || null,
+      _expires_at: exp.toISOString(),
     });
     setSaving(false);
     if (err) {
@@ -131,6 +162,7 @@ function ClassificadosPage() {
     setSelPlayers([]);
     setSelPicks([]);
     setNote("");
+    setExpiresAt(defaultExpires());
     setOpen(false);
     await load();
   }
@@ -223,8 +255,23 @@ function ClassificadosPage() {
             </p>
           </div>
 
-          {formError && <p className="mb-2 text-sm text-destructive">{formError}</p>}
-          <div className="flex items-center justify-between gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <label htmlFor="expires" className="text-sm">
+              Anúncio válido até
+            </label>
+            <Input
+              id="expires"
+              type="datetime-local"
+              value={expiresAt}
+              max={toLocalInput(maxExpires())}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              className="w-56"
+            />
+            <span className="text-xs text-muted-foreground">máximo de 1 mês</span>
+          </div>
+
+          {formError && <p className="mb-2 mt-3 text-sm text-destructive">{formError}</p>}
+          <div className="mt-3 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               {selPlayers.length + selPicks.length} item(ns) · os outros GMs recebem um aviso no sino
             </p>
@@ -235,7 +282,7 @@ function ClassificadosPage() {
               description={
                 <p>
                   {selPlayers.length + selPicks.length} item(ns) vão para os classificados e os outros GMs
-                  recebem um aviso no sino.
+                  recebem um aviso no sino. O anúncio fica válido até {fmtPrazo(expiresAt)}.
                 </p>
               }
               confirmLabel="Publicar"
@@ -268,7 +315,10 @@ function ClassificadosPage() {
                 >
                   {p.team_name}
                 </Link>
-                <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(p.created_at)}</span>
+                <span className="shrink-0 text-right text-xs text-muted-foreground">
+                  {timeAgo(p.created_at)}
+                  {p.expires_at && <span className="block">válido até {fmtPrazo(p.expires_at)}</span>}
+                </span>
               </div>
               {p.note && <p className="mt-1.5 text-sm italic text-muted-foreground">“{p.note}”</p>}
               <ul className="mt-3 flex flex-wrap gap-2">
