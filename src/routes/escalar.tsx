@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequireAuth } from "@/lib/auth";
+import { standingFor, type ConfTeam, type StandRow, type Standing } from "@/lib/standings-rank";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/escalar")({
 
 // Tipagem frouxa: types.ts está defasado em relação ao banco vivo.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as unknown as { from: (table: string) => any };
+const db = supabase as unknown as { from: (table: string) => any; rpc: (fn: string, args?: unknown) => any };
 
 type Position = { id: string; code: string; name: string; sort_order: number; accepts_any: boolean };
 type Lock = { id: string; season_id: string; week_number: number; locks_at: string };
@@ -46,8 +47,27 @@ type SlotRow = { position_id: string; slot_type: SlotType; player_id: string };
 /** chave "<position_id>:<slot_type>" -> player_id */
 type Selection = Record<string, string>;
 
+type Opponent = {
+  id: string;
+  name: string;
+  slug: string | null;
+  logo_url: string | null;
+  primary_color: string | null;
+  conference: string | null;
+  standing: Standing | null;
+};
+type GameInfo = { id: string; number: number; opp: Opponent | null };
+
 const slotKey = (positionId: string, type: SlotType) => `${positionId}:${type}`;
 const NONE = "__none";
+const EMPTY: Selection = {};
+const TOTAL_SLOTS = 12;
+
+const sigOf = (sel: Selection) =>
+  Object.entries(sel)
+    .map(([k, v]) => `${k}=${v}`)
+    .sort()
+    .join("|");
 
 function codesOf(position: string) {
   return position.split("/").map((c) => c.trim());
@@ -73,8 +93,7 @@ function friendlyError(message: string): { text: string; expired: boolean } {
 
 /**
  * Grava uma escalação em UM jogo: upsert do matchup_lineups (game_id, team_id) e
- * substituição dos lineup_slots. Isolada pra reaproveitar na escalação por jogo.
- * Slots vazios simplesmente não são inseridos (salvamento parcial).
+ * substituição dos lineup_slots. Slots vazios simplesmente não são inseridos (salvamento parcial).
  * Se a inserção falhar (ex.: trigger), tenta restaurar os slots anteriores.
  */
 async function gravarEscalacaoNoJogo(gameId: string, teamId: string, slots: SlotRow[]) {
@@ -109,6 +128,33 @@ async function gravarEscalacaoNoJogo(gameId: string, teamId: string, slots: Slot
   }
 }
 
+function initials(name: string): string {
+  const w = name.trim().split(/\s+/);
+  if (w.length === 1) return w[0].slice(0, 2).toUpperCase();
+  return (w[0][0] + w[w.length - 1][0]).toUpperCase();
+}
+
+function OppBadge({ opp, size = 32 }: { opp: Opponent; size?: number }) {
+  return (
+    <div
+      className="flex flex-none items-center justify-center overflow-hidden rounded-full font-semibold text-white"
+      style={{ background: opp.primary_color ?? "#374151", width: size, height: size, fontSize: size * 0.34 }}
+    >
+      {opp.logo_url ? (
+        <img src={opp.logo_url} alt={opp.name} className="h-full w-full object-cover" />
+      ) : (
+        <span>{initials(opp.name)}</span>
+      )}
+    </div>
+  );
+}
+
+function standingText(s: Standing | null, conference: string | null): string | null {
+  if (!s) return null;
+  const rec = `${s.w}-${s.l}-${s.d}`;
+  return s.rank != null && conference ? `${rec} · ${s.rank}º na ${conference}` : rec;
+}
+
 function EscalarPage() {
   const { ready, forbidden, teamId, isAdmin } = useRequireAuth({ role: "gm" });
 
@@ -118,9 +164,13 @@ function EscalarPage() {
   const [lock, setLock] = useState<Lock | null>(null);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
-  const [gameIds, setGameIds] = useState<string[]>([]);
+  const [games, setGames] = useState<GameInfo[]>([]);
   const [gamesWithLineup, setGamesWithLineup] = useState<string[]>([]);
-  const [selection, setSelection] = useState<Selection>({});
+  /** escalação gravada no banco, por jogo */
+  const [saved, setSaved] = useState<Record<string, Selection>>({});
+  /** o que está na tela, por jogo (mantém as edições ao trocar de jogo) */
+  const [drafts, setDrafts] = useState<Record<string, Selection>>({});
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [forcedExpired, setForcedExpired] = useState(false);
@@ -162,8 +212,7 @@ function EscalarPage() {
           return;
         }
 
-        // Elenco AO VIVO (roster_entries): vale tudo o que mudou até o prazo do lock — é a mesma
-        // regra que o banco usa pra validar o slot. (Antes lia a foto weekly_rosters.)
+        // Elenco AO VIVO (roster_entries): mesma regra que o banco usa pra validar o slot.
         const seasonRes = await db
           .from("seasons")
           .select("start_year")
@@ -180,20 +229,26 @@ function EscalarPage() {
             .not("position", "is", null),
           db
             .from("games")
-            .select("id")
+            .select("id, game_number_in_week, home_team_id, away_team_id")
             .eq("season_id", cur.season_id)
             .eq("week_number", cur.week_number)
             .eq("status", "scheduled")
             .eq("is_playoff", false)
-            .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`),
+            .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+            .order("game_number_in_week", { ascending: true }),
         ]);
         if (rosterRes.error) throw new Error(rosterRes.error.message);
         if (gamesRes.error) throw new Error(gamesRes.error.message);
 
         const rosterRows = rosterRes.data as RosterRow[];
         setRoster(rosterRows);
-        const ids = (gamesRes.data as { id: string }[]).map((g) => g.id);
-        setGameIds(ids);
+        const gameRows = gamesRes.data as {
+          id: string;
+          game_number_in_week: number;
+          home_team_id: string;
+          away_team_id: string;
+        }[];
+        const ids = gameRows.map((g) => g.id);
 
         const playerIds = [...new Set(rosterRows.map((r) => r.player_id))];
         if (playerIds.length > 0) {
@@ -204,10 +259,44 @@ function EscalarPage() {
           );
         }
 
-        // Escalação existente (dos meus jogos da semana).
-        let sel: Selection = {};
+        // Adversários + campanha. Falha aqui não impede de escalar: só some a informação.
+        const oppOf = (g: (typeof gameRows)[number]) =>
+          g.home_team_id === teamId ? g.away_team_id : g.home_team_id;
+        const oppById = new Map<string, Opponent>();
+        try {
+          const oppIds = [...new Set(gameRows.map(oppOf))];
+          if (oppIds.length > 0) {
+            const [tRes, actRes, stRes] = await Promise.all([
+              db
+                .from("teams")
+                .select("id, name, slug, logo_url, primary_color, conference")
+                .in("id", oppIds),
+              db.from("teams").select("id, name, conference").eq("is_active", true),
+              db.rpc("get_standings", { season_ids: [cur.season_id] }),
+            ]);
+            const active = (actRes.data ?? []) as ConfTeam[];
+            const rows = (stRes.data ?? []) as StandRow[];
+            for (const t of (tRes.data ?? []) as Omit<Opponent, "standing">[]) {
+              oppById.set(t.id, {
+                ...t,
+                standing: stRes.error ? null : standingFor(t.id, active, rows),
+              });
+            }
+          }
+        } catch {
+          /* sem dados do adversário */
+        }
+        const gameInfos: GameInfo[] = gameRows.map((g) => ({
+          id: g.id,
+          number: g.game_number_in_week,
+          opp: oppById.get(oppOf(g)) ?? null,
+        }));
+        setGames(gameInfos);
+
+        // Escalação existente de cada jogo da semana.
+        const savedBy: Record<string, Selection> = {};
         let withLineup: string[] = [];
-        let msg: string | null = null;
+        let dropped = 0;
         if (ids.length > 0) {
           const lRes = await db
             .from("matchup_lineups")
@@ -217,38 +306,34 @@ function EscalarPage() {
           if (lRes.error) throw new Error(lRes.error.message);
           const lineups = lRes.data as { id: string; game_id: string }[];
           withLineup = lineups.map((l) => l.game_id);
+          let slots: (SlotRow & { lineup_id: string })[] = [];
           if (lineups.length > 0) {
             const sRes = await db
               .from("lineup_slots")
               .select("lineup_id, position_id, slot_type, player_id")
               .in("lineup_id", lineups.map((l) => l.id));
             if (sRes.error) throw new Error(sRes.error.message);
-            const slots = sRes.data as (SlotRow & { lineup_id: string })[];
-            const sigOf = (lid: string) =>
-              slots
-                .filter((s) => s.lineup_id === lid)
-                .map((s) => `${s.position_id}:${s.slot_type}:${s.player_id}`)
-                .sort()
-                .join("|");
-            const first = lineups.find((l) => slots.some((s) => s.lineup_id === l.id)) ?? lineups[0];
-            const validIds = new Set(rosterRows.filter((r) => r.status === "active").map((r) => r.player_id));
-            let dropped = 0;
-            for (const s of slots.filter((x) => x.lineup_id === first.id)) {
+            slots = sRes.data as (SlotRow & { lineup_id: string })[];
+          }
+          const validIds = new Set(rosterRows.filter((r) => r.status === "active").map((r) => r.player_id));
+          for (const l of lineups) {
+            const sel: Selection = {};
+            for (const s of slots.filter((x) => x.lineup_id === l.id)) {
               if (validIds.has(s.player_id)) sel[slotKey(s.position_id, s.slot_type)] = s.player_id;
               else dropped++;
             }
-            const differs = new Set(lineups.map((l) => sigOf(l.id))).size > 1;
-            const parts: string[] = [];
-            if (differs)
-              parts.push("Seus jogos da semana têm escalações diferentes; estamos mostrando a do primeiro. Salvar pode sobrescrevê-las.");
-            if (dropped > 0)
-              parts.push(`${dropped} slot(s) removido(s) da visualização: o jogador não está mais ativo no elenco.`);
-            msg = parts.length ? parts.join(" ") : null;
+            savedBy[l.game_id] = sel;
           }
         }
-        setSelection(sel);
+        setSaved(savedBy);
+        setDrafts(Object.fromEntries(ids.map((id) => [id, { ...(savedBy[id] ?? {}) }])));
         setGamesWithLineup(withLineup);
-        setNotice(msg);
+        setActiveId((prev) => (prev && ids.includes(prev) ? prev : (ids[0] ?? null)));
+        setNotice(
+          dropped > 0
+            ? `${dropped} slot(s) removido(s) da visualização: o jogador não está mais ativo no elenco.`
+            : null,
+        );
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : "Erro ao carregar a escalação.");
       } finally {
@@ -264,6 +349,10 @@ function EscalarPage() {
 
   const expired = forcedExpired || (!!lock && now >= new Date(lock.locks_at).getTime());
   const editable = !expired || isAdmin;
+
+  const gameIds = useMemo(() => games.map((g) => g.id), [games]);
+  const activeGame = games.find((g) => g.id === activeId) ?? null;
+  const selection: Selection = (activeId && drafts[activeId]) || EMPTY;
 
   const activePlayers = useMemo(() => {
     const seen = new Set<string>();
@@ -288,22 +377,23 @@ function EscalarPage() {
   }
 
   function setSlot(pos: Position, type: SlotType, playerId: string) {
+    if (!activeId) return;
     setResult(null);
-    setSelection((cur) => {
-      const next = { ...cur };
+    setDrafts((cur) => {
+      const next = { ...(cur[activeId] ?? {}) };
       const key = slotKey(pos.id, type);
       if (playerId === NONE) delete next[key];
       else next[key] = playerId;
-      return next;
+      return { ...cur, [activeId]: next };
     });
   }
 
-  function buildSlots(): { slots: SlotRow[]; error: string | null } {
+  function buildSlots(sel: Selection): { slots: SlotRow[]; error: string | null } {
     const slots: SlotRow[] = [];
     const titulares = new Set<string>();
     for (const pos of positions) {
       for (const type of ["titular", "reserva"] as SlotType[]) {
-        const pid = selection[slotKey(pos.id, type)];
+        const pid = sel[slotKey(pos.id, type)];
         if (!pid) continue;
         const player = activePlayers.find((p) => p.player_id === pid);
         if (!player) return { slots, error: `${nameOf(pid)} não está ativo no seu elenco.` };
@@ -329,9 +419,37 @@ function EscalarPage() {
     }
     return out;
   }, [positions, selection, names]);
-  const [dupOpen, setDupOpen] = useState(false);
 
-  async function save(scope: "existentes" | "todos") {
+  type Kind = "jogo" | "todos";
+  const [dupOpen, setDupOpen] = useState(false);
+  const [pendingKind, setPendingKind] = useState<Kind>("jogo");
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+
+  /** "aplicar a todos" sobrescreveria a escalação já salva e diferente de algum outro jogo */
+  const overwritesOthers = games.some((g) => {
+    if (g.id === activeId) return false;
+    const s = sigOf(saved[g.id] ?? EMPTY);
+    return s !== "" && s !== sigOf(selection);
+  });
+
+  function request(kind: Kind) {
+    setPendingKind(kind);
+    if (duplicatas.length > 0) {
+      setDupOpen(true);
+      return;
+    }
+    proceed(kind);
+  }
+
+  function proceed(kind: Kind) {
+    if (kind === "todos" && overwritesOthers) {
+      setConfirmAllOpen(true);
+      return;
+    }
+    void persist(kind === "jogo" && activeId ? [activeId] : gameIds, selection);
+  }
+
+  async function persist(targets: string[], sel: Selection) {
     if (!teamId || !lock) return;
     setResult(null);
     if (!isAdmin && now >= new Date(lock.locks_at).getTime()) {
@@ -339,31 +457,45 @@ function EscalarPage() {
       setResult({ ok: false, message: "Prazo encerrado para esta semana." });
       return;
     }
-    const { slots, error } = buildSlots();
+    const { slots, error } = buildSlots(sel);
     if (error) {
       setResult({ ok: false, message: error });
       return;
     }
-    // "Salvar" atualiza os jogos já escalados (ou todos, se ainda nenhum tem escalação).
-    const targets =
-      scope === "existentes" && gamesWithLineup.length > 0
-        ? gameIds.filter((g) => gamesWithLineup.includes(g))
-        : gameIds;
     if (targets.length === 0) {
       setResult({ ok: false, message: "Não há jogo aberto nesta semana para escalar." });
       return;
     }
     setSaving(true);
+    const done: string[] = [];
+    const markSaved = (ids: string[]) => {
+      if (ids.length === 0) return;
+      setSaved((cur) => ({ ...cur, ...Object.fromEntries(ids.map((g) => [g, { ...sel }])) }));
+      setDrafts((cur) => ({ ...cur, ...Object.fromEntries(ids.map((g) => [g, { ...sel }])) }));
+      setGamesWithLineup((cur) => [...new Set([...cur, ...ids])]);
+    };
     try {
-      for (const gameId of targets) await gravarEscalacaoNoJogo(gameId, teamId, slots);
-      setGamesWithLineup((cur) => [...new Set([...cur, ...targets])]);
+      for (const gameId of targets) {
+        await gravarEscalacaoNoJogo(gameId, teamId, slots);
+        done.push(gameId);
+      }
+      markSaved(done);
+      const label = (id: string) => `jogo ${games.find((g) => g.id === id)?.number ?? ""}`.trim();
       setResult({
         ok: true,
-        message: `Escalação salva em ${targets.length} jogo(s) da semana ${lock.week_number}.`,
+        message:
+          targets.length === 1
+            ? `Escalação salva no ${label(targets[0])} da semana ${lock.week_number}.`
+            : `Escalação salva em ${targets.length} jogos da semana ${lock.week_number}.`,
       });
     } catch (e) {
+      markSaved(done);
       const { text, expired: exp } = friendlyError(e instanceof Error ? e.message : String(e));
-      setResult({ ok: false, message: text });
+      setResult({
+        ok: false,
+        message:
+          done.length > 0 ? `${text} (salvo em ${done.length} de ${targets.length} jogos antes do erro.)` : text,
+      });
       if (exp) {
         setForcedExpired(true);
         await load(lock.id);
@@ -371,6 +503,14 @@ function EscalarPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function statusOf(gameId: string): { text: string; tone: "ok" | "warn" | "muted" } {
+    const dirty = sigOf(drafts[gameId] ?? EMPTY) !== sigOf(saved[gameId] ?? EMPTY);
+    if (dirty) return { text: "alterações não salvas", tone: "warn" };
+    const n = Object.keys(saved[gameId] ?? EMPTY).length;
+    if (gamesWithLineup.includes(gameId) && n > 0) return { text: `escalado (${n}/${TOTAL_SLOTS})`, tone: "ok" };
+    return { text: "sem escalação", tone: "muted" };
   }
 
   if (forbidden) {
@@ -428,13 +568,17 @@ function EscalarPage() {
     dateStyle: "short",
     timeStyle: "short",
   });
+  const multi = games.length > 1;
 
   return (
     <Shell>
       <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Semana {lock.week_number}</p>
       <h1 className="mt-1 font-display text-3xl">Escalação</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Prazo: {deadline} (horário de Brasília). Mesma escalação para todos os jogos da semana.
+        Prazo: {deadline} (horário de Brasília).{" "}
+        {multi
+          ? "Escale jogo a jogo ou aplique a mesma escalação a todos os jogos da semana."
+          : "Escalação do seu jogo da semana."}
       </p>
 
       {expired && (
@@ -447,7 +591,7 @@ function EscalarPage() {
           </AlertDescription>
         </Alert>
       )}
-      {!expired && gameIds.length === 0 && (
+      {!expired && games.length === 0 && (
         <Alert className="mt-6">
           <AlertDescription>Não há jogo aberto nesta semana para escalar.</AlertDescription>
         </Alert>
@@ -458,7 +602,79 @@ function EscalarPage() {
         </Alert>
       )}
 
-      <div className="mt-8 overflow-hidden rounded-md border border-border">
+      {games.length > 0 && (
+        <>
+          <h2 className="mt-8 font-display text-xl">Seus jogos da semana</h2>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {games.map((g) => {
+              const st = statusOf(g.id);
+              const active = g.id === activeId;
+              const text = g.opp ? standingText(g.opp.standing, g.opp.conference) : null;
+              return (
+                <div
+                  key={g.id}
+                  className={cn(
+                    "min-w-[200px] flex-1 rounded-lg border bg-card transition-colors",
+                    active ? "border-[color:var(--court)] ring-1 ring-[color:var(--court)]/40" : "border-border",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(g.id)}
+                    aria-pressed={active}
+                    className="block w-full rounded-t-lg px-3 pb-2 pt-3 text-left hover:bg-muted/40"
+                  >
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Jogo {g.number}
+                    </span>
+                    <span className="mt-1.5 flex items-center gap-2.5">
+                      {g.opp && <OppBadge opp={g.opp} />}
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">
+                          {g.opp ? `vs ${g.opp.name}` : "Adversário não encontrado"}
+                        </span>
+                        {text && <span className="block text-xs tabular-nums text-muted-foreground">{text}</span>}
+                      </span>
+                    </span>
+                    <span
+                      className={cn(
+                        "mt-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        st.tone === "ok" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                        st.tone === "warn" && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                        st.tone === "muted" && "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {st.text}
+                    </span>
+                  </button>
+                  {g.opp?.slug && (
+                    <div className="border-t border-border/60 px-3 py-1.5">
+                      <Link
+                        to="/times/$slug"
+                        params={{ slug: g.opp.slug }}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground hover:text-[color:var(--court)] hover:underline"
+                      >
+                        Ver elenco e estatísticas do time ↗
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {activeGame && (
+        <p className="mt-8 text-sm font-medium">
+          Escalando o jogo {activeGame.number}
+          {activeGame.opp ? ` contra ${activeGame.opp.name}` : ""}
+        </p>
+      )}
+
+      <div className="mt-3 overflow-hidden rounded-md border border-border">
         <div className="grid grid-cols-[110px_1fr_1fr] bg-muted/50 px-3 py-2 text-[11px] uppercase tracking-wider text-muted-foreground">
           <span>Posição</span>
           <span>Titular</span>
@@ -507,12 +723,14 @@ function EscalarPage() {
 
       {editable && (
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button
-            onClick={() => (duplicatas.length > 0 ? setDupOpen(true) : void save("todos"))}
-            disabled={saving || gameIds.length === 0}
-          >
-            {saving ? "Salvando..." : "Salvar escalação"}
+          <Button onClick={() => request("jogo")} disabled={saving || !activeId}>
+            {saving ? "Salvando..." : multi ? `Salvar no jogo ${activeGame?.number ?? ""}`.trim() : "Salvar escalação"}
           </Button>
+          {multi && (
+            <Button variant="outline" onClick={() => request("todos")} disabled={saving || !activeId}>
+              Aplicar a todos os jogos da semana
+            </Button>
+          )}
         </div>
       )}
 
@@ -541,7 +759,25 @@ function EscalarPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar e corrigir</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void save("todos")}>Salvar assim mesmo</AlertDialogAction>
+            <AlertDialogAction onClick={() => proceed(pendingKind)}>Salvar assim mesmo</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmAllOpen} onOpenChange={setConfirmAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sobrescrever as escalações dos outros jogos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Alguns jogos da semana já têm uma escalação diferente desta. Ao aplicar a todos, a escalação
+              mostrada agora substitui a deles.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void persist(gameIds, selection)}>
+              Aplicar a todos
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -25,6 +25,9 @@ type TeamMeta = {
   logo_url: string | null;
   primary_color: string | null;
   sheet_nickname: string | null;
+  conference: string | null;
+  // campanha na temporada (só jogos final) + posição na conferência
+  standing?: { w: number; l: number; d: number; rank: number | null } | null;
 };
 
 type GameMeta = {
@@ -84,7 +87,50 @@ async function fetchGvizCached(docId: string, gid: string): Promise<string> {
   return text;
 }
 
-const TEAM_COLS = "id, name, slug, logo_url, primary_color, sheet_nickname";
+const TEAM_COLS = "id, name, slug, logo_url, primary_color, sheet_nickname, conference";
+
+// Campanha (V-D-E) e posição na conferência, mesma regra da tabela de classificação:
+// vitórias desc, empates desc, nome. Só times ativos entram no ranking.
+// Falha de leitura = sem campanha na tela, nunca erro.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadStandings(sb: any, seasonId: string | null, teamIds: string[]) {
+  const out = new Map<string, NonNullable<TeamMeta["standing"]>>();
+  if (!seasonId) return out;
+  try {
+    const [{ data: rows }, { data: active }] = await Promise.all([
+      sb.rpc("get_standings", { season_ids: [seasonId] }),
+      sb.from("teams").select("id, name, conference").eq("is_active", true),
+    ]);
+    const rec = new Map<string, { w: number; d: number; l: number; gp: number }>();
+    for (const r of (rows ?? []) as { team_id: string; w: number; d: number; l: number; gp: number }[]) {
+      rec.set(r.team_id, { w: Number(r.w), d: Number(r.d), l: Number(r.l), gp: Number(r.gp) });
+    }
+    const teams = (active ?? []) as { id: string; name: string; conference: string | null }[];
+    const get = (id: string) => rec.get(id) ?? { w: 0, d: 0, l: 0, gp: 0 };
+    for (const id of teamIds) {
+      const me = teams.find((t) => t.id === id);
+      const r = get(id);
+      let rank: number | null = null;
+      if (me?.conference) {
+        const conf = teams
+          .filter((t) => t.conference === me.conference)
+          .sort((a, b) => {
+            const A = get(a.id);
+            const B = get(b.id);
+            if (B.w !== A.w) return B.w - A.w;
+            if (B.d !== A.d) return B.d - A.d;
+            return a.name.localeCompare(b.name);
+          });
+        // sem nenhum jogo final na conferência a ordem seria só alfabética: não mostra posição
+        if (conf.some((t) => get(t.id).gp > 0)) rank = conf.findIndex((t) => t.id === id) + 1;
+      }
+      out.set(id, { w: r.w, l: r.l, d: r.d, rank });
+    }
+  } catch {
+    /* sem campanha */
+  }
+  return out;
+}
 
 // Mapa nome→espn_id (cache de 10 min por isolate). Nome que normaliza para dois
 // jogadores é ambíguo e fica sem link. Falha de leitura = sem links, nunca erro.
@@ -118,7 +164,7 @@ const fetchConfronto = createServerFn({ method: "GET" })
 
     const { data: game } = await sb
       .from("games")
-      .select("id, status, week_number, external_url, home_team_id, away_team_id")
+      .select("id, status, week_number, external_url, home_team_id, away_team_id, season_id")
       .eq("id", gameId)
       .maybeSingle();
 
@@ -133,13 +179,21 @@ const fetchConfronto = createServerFn({ method: "GET" })
     const home = byId.get(game.home_team_id);
     const away = byId.get(game.away_team_id);
 
+    const standings = await loadStandings(sb, game.season_id ?? null, [game.home_team_id, game.away_team_id]);
+
     const meta: GameMeta = {
       gameId: game.id,
       status: game.status,
       weekNumber: game.week_number,
       planilhaUrl: game.external_url,
-      home: home ?? ({ id: game.home_team_id, name: "?", slug: null, logo_url: null, primary_color: null, sheet_nickname: null }),
-      away: away ?? ({ id: game.away_team_id, name: "?", slug: null, logo_url: null, primary_color: null, sheet_nickname: null }),
+      home: {
+        ...(home ?? { id: game.home_team_id, name: "?", slug: null, logo_url: null, primary_color: null, sheet_nickname: null, conference: null }),
+        standing: standings.get(game.home_team_id) ?? null,
+      },
+      away: {
+        ...(away ?? { id: game.away_team_id, name: "?", slug: null, logo_url: null, primary_color: null, sheet_nickname: null, conference: null }),
+        standing: standings.get(game.away_team_id) ?? null,
+      },
     };
 
     if (!game.external_url) return { ok: false, reason: "sem_planilha", meta };
@@ -444,6 +498,14 @@ function TeamSide({ team, align, dim }: { team: TeamMeta; align: "left" | "right
       <TeamBadge team={team} size={44} />
       <div className="min-w-0">
         <p className="truncate font-display text-lg leading-tight tracking-tight md:text-xl">{team.name}</p>
+        {team.standing && (
+          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+            {team.standing.w}-{team.standing.l}-{team.standing.d}
+            {team.standing.rank != null && team.conference
+              ? ` · ${team.standing.rank}º na ${team.conference}`
+              : ""}
+          </p>
+        )}
       </div>
     </div>
   );

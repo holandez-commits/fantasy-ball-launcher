@@ -262,7 +262,7 @@ function ConsolidarLockPage() {
       <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Admin</p>
       <h1 className="mt-1 font-display text-3xl">Preencher escalações pendentes</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Depois do prazo, preenche quem não escalou copiando a última escalação de cada time. Só
+        Depois do prazo, preenche quem não escalou copiando a escalação de outro jogo da mesma semana (se o time escalou algum) ou, senão, a última escalação anterior. Só
         funciona depois que o prazo da semana vence; jogadores que saíram do elenco viram buracos.
       </p>
 
@@ -383,7 +383,7 @@ function ConsolidarLockPage() {
             <AlertDialogTitle>Confirmar preenchimento</AlertDialogTitle>
             <AlertDialogDescription>
               Isso vai criar escalações por cópia pra todos os times que não escalaram na semana{" "}
-              {lock?.week_number} da {season?.label}, usando a última escalação de cada um. Ação com
+              {lock?.week_number} da {season?.label}, usando a escalação de outro jogo da mesma semana ou, senão, a última escalação de cada um. Ação com
               efeito no banco.
             </AlertDialogDescription>
           </AlertDialogHeader>

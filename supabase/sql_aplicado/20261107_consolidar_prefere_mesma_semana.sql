@@ -1,0 +1,24 @@
+-- Consolidação de escalações pendentes: passa a preferir a escalação de OUTRO jogo
+-- da mesma semana (do mesmo time, com slots); se não houver, usa a última anterior (regra antiga).
+-- Aplicado em produção em 2026-11-07 via patch no corpo de consolidar_escalacoes_pendentes_v2.
+-- Trecho trocado (seleção de v_src_lineup):
+--
+--   select ml.id into v_src_lineup
+--   from public.matchup_lineups ml
+--   join public.games g on g.id = ml.game_id
+--   where ml.team_id = v_game.team_id and g.is_playoff = false
+--     and g.season_id = _season_id and g.week_number = _week and g.id <> v_game.game_id
+--     and exists (select 1 from public.lineup_slots s where s.lineup_id = ml.id)
+--   order by g.game_number_in_week, g.id
+--   limit 1;
+--
+--   if v_src_lineup is null then
+--     select ml.id into v_src_lineup
+--     from public.matchup_lineups ml
+--     join public.games g on g.id = ml.game_id
+--     where ml.team_id = v_game.team_id and g.is_playoff = false
+--     order by g.played_on desc nulls last, g.week_number desc, g.game_number_in_week desc
+--     limit 1;
+--   end if;
+--
+-- Para reaplicar do zero: pegar pg_get_functiondef da função atual (já contém o trecho novo).

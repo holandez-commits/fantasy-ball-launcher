@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { espnPlayerUrl } from "@/lib/links";
 
 export const Route = createFileRoute("/leilao")({
   head: () => ({
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/leilao")({
   component: LeilaoPage,
 });
 
-type FA = { playerId: string; name: string; isPending: boolean };
+type FA = { playerId: string; name: string; isPending: boolean; espnId: string | null };
 type MyBid = { bidId: string; salaryOffer: number; status: string };
 
 const MIN_BID = 750_000;
@@ -104,10 +105,20 @@ function LeilaoPage() {
       const inRoster = new Set(
         ((rosterRes.data ?? []) as { player_id: string }[]).map((r) => r.player_id),
       );
-      const plRes = await db.from("players").select("id, full_name, is_pending").order("full_name");
-      const pool = ((plRes.data ?? []) as { id: string; full_name: string; is_pending: boolean }[])
+      const plRes = await db
+        .from("players")
+        .select("id, full_name, is_pending, espn_id")
+        .order("full_name");
+      const pool = (
+        (plRes.data ?? []) as { id: string; full_name: string; is_pending: boolean; espn_id: string | null }[]
+      )
         .filter((p) => !inRoster.has(p.id))
-        .map((p) => ({ playerId: p.id, name: p.full_name, isPending: !!p.is_pending }));
+        .map((p) => ({
+          playerId: p.id,
+          name: p.full_name,
+          isPending: !!p.is_pending,
+          espnId: p.espn_id ?? null,
+        }));
       setFas(pool);
 
       // meus lances da semana
@@ -367,7 +378,19 @@ function LeilaoPage() {
                       className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
                     >
                       <span className="min-w-[160px] flex-1 font-medium">
-                        {f.name}
+                        {f.espnId ? (
+                          <a
+                            href={espnPlayerUrl(f.espnId)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Ver na ESPN"
+                            className="hover:text-[color:var(--court)] hover:underline"
+                          >
+                            {f.name}
+                          </a>
+                        ) : (
+                          f.name
+                        )}
                         {f.isPending && (
                           <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                             novo na liga
