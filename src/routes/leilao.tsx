@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { espnPlayerUrl } from "@/lib/links";
+import { espnPlayerUrl, espnSearchUrl } from "@/lib/links";
 
 export const Route = createFileRoute("/leilao")({
   head: () => ({
@@ -378,19 +378,15 @@ function LeilaoPage() {
                       className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
                     >
                       <span className="min-w-[160px] flex-1 font-medium">
-                        {f.espnId ? (
-                          <a
-                            href={espnPlayerUrl(f.espnId)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Ver na ESPN"
-                            className="hover:text-[color:var(--court)] hover:underline"
-                          >
-                            {f.name}
-                          </a>
-                        ) : (
-                          f.name
-                        )}
+                        <a
+                          href={f.espnId ? espnPlayerUrl(f.espnId) : espnSearchUrl(f.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={f.espnId ? "Ver na ESPN" : "Buscar na ESPN"}
+                          className="hover:text-[color:var(--court)] hover:underline"
+                        >
+                          {f.name}
+                        </a>
                         {f.isPending && (
                           <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                             novo na liga
