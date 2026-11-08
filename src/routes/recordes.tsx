@@ -77,6 +77,20 @@ type ChampionRow = {
 
 type Tab = "recordes" | "campanhas" | "campeoes";
 
+type StatusFilter = "todos" | "ativos" | "extintos";
+
+const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "ativos", label: "Ativos" },
+  { key: "extintos", label: "Extintos" },
+];
+
+function matchStatus(meta: TeamMeta | undefined, f: StatusFilter): boolean {
+  if (f === "todos") return true;
+  if (!meta) return false;
+  return f === "ativos" ? meta.is_active : !meta.is_active;
+}
+
 const TABS: { key: Tab; label: string }[] = [
   { key: "recordes", label: "Recordes" },
   { key: "campanhas", label: "Campanhas" },
@@ -871,6 +885,7 @@ function Skeleton() {
 function RecordesPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [teamStats, setTeamStats] = useState<TeamStatRow[]>([]);
   const [seasonStandings, setSeasonStandings] = useState<SeasonStandingRow[]>([]);
   const [teamMetaMap, setTeamMetaMap] = useState<Map<string, TeamMeta>>(new Map());
@@ -937,11 +952,12 @@ function RecordesPage() {
 
   const catRecords = useMemo(() => {
     return CATS.map((cat) => {
-      if (teamStats.length === 0) return { ...cat, best: null, worst: null };
-      const sorted = [...teamStats].sort((a, b) => b[cat.key] - a[cat.key]);
+      const rows = teamStats.filter((r) => matchStatus(teamMetaMap.get(r.team_id), statusFilter));
+      if (rows.length === 0) return { ...cat, best: null, worst: null };
+      const sorted = [...rows].sort((a, b) => b[cat.key] - a[cat.key]);
       return { ...cat, best: sorted[0] ?? null, worst: sorted[sorted.length - 1] ?? null };
     });
-  }, [teamStats]);
+  }, [teamStats, teamMetaMap, statusFilter]);
 
   // ── Recordes de temporada ────────────────────────────────────────────────
 
@@ -963,8 +979,8 @@ function RecordesPage() {
         gp: h.wins + h.ties + h.losses,
       }));
     const fromGames = seasonStandings.filter((r) => !covered.has(r.season_id));
-    return [...fromHistory, ...fromGames];
-  }, [history, seasons, seasonStandings, selectedSeasons]);
+    return [...fromHistory, ...fromGames].filter((r) => matchStatus(teamMetaMap.get(r.team_id), statusFilter));
+  }, [history, seasons, seasonStandings, selectedSeasons, teamMetaMap, statusFilter]);
 
   // Títulos da liga por time (só campeão da liga)
   const leagueTitles = useMemo(() => {
@@ -1028,8 +1044,25 @@ function RecordesPage() {
       )}
 
       {tab === "recordes" && (
-        <div className="mb-10">
+        <div className="mb-10 flex flex-wrap items-center gap-3">
           <SeasonFilter seasons={seasons} selected={selectedSeasons} onChange={setSelectedSeasons} />
+          <div className="inline-flex overflow-hidden rounded-lg border border-border bg-card text-sm font-medium">
+            {STATUS_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setStatusFilter(o.key)}
+                className={cn(
+                  "px-4 py-2 transition-colors",
+                  statusFilter === o.key
+                    ? "bg-[color:var(--court)] text-white"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
