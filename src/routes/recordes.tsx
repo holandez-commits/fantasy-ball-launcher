@@ -341,9 +341,11 @@ function StreakTable({ standings }: { standings: SeasonStandingRow[] }) {
 function AllTimeWinsTable({
   standings,
   teamMetaMap,
+  titles,
 }: {
   standings: SeasonStandingRow[];
   teamMetaMap: Map<string, TeamMeta>;
+  titles: Map<string, number>;
 }) {
   // Agrega todas as temporadas por time
   const byTeam = new Map<string, { w: number; d: number; l: number; gp: number }>();
@@ -393,6 +395,15 @@ function AllTimeWinsTable({
                 </td>
                 <td className="px-4 py-3 font-medium">
                   {meta?.name ?? row.tid}
+                  {(titles.get(row.tid) ?? 0) > 0 && (
+                    <span
+                      className="ml-2 inline-flex items-center gap-0.5 align-middle text-xs font-bold text-amber-600 dark:text-amber-400"
+                      title={`${titles.get(row.tid)} título(s) da liga`}
+                    >
+                      <Trophy className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                      {titles.get(row.tid)}
+                    </span>
+                  )}
                   {inactive && (
                     <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground">
                       extinto
@@ -862,6 +873,16 @@ function RecordesPage() {
     return [...fromHistory, ...fromGames];
   }, [history, seasons, seasonStandings, selectedSeason]);
 
+  // Títulos da liga por time (só campeão da liga)
+  const leagueTitles = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of champions) {
+      if (c.cancelled || !c.league_champion_id) continue;
+      m.set(c.league_champion_id, (m.get(c.league_champion_id) ?? 0) + 1);
+    }
+    return m;
+  }, [champions]);
+
   const seasonRecords = useMemo(() => {
     if (mergedStandings.length === 0) return { best: null, worst: null };
     const sorted = [...mergedStandings].sort((a, b) => b.w - a.w || b.d - a.d);
@@ -958,7 +979,7 @@ function RecordesPage() {
           {/* 4. All-time wins */}
           <section>
             <SectionTitle icon={<Trophy className="h-5 w-5" />} title="Mais vitórias no histórico" />
-            <AllTimeWinsTable standings={mergedStandings} teamMetaMap={teamMetaMap} />
+            <AllTimeWinsTable standings={mergedStandings} teamMetaMap={teamMetaMap} titles={leagueTitles} />
             <MergeNotes />
           </section>
 
