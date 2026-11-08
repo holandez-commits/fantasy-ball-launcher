@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
 import {
-  ChevronDown, Check, Trophy, TrendingUp, Award,
+  ChevronDown, Check, Trophy, TrendingUp, Award, ArrowUp, ArrowDown,
 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -338,6 +338,8 @@ function StreakTable({ standings }: { standings: SeasonStandingRow[] }) {
   );
 }
 
+type SortKey = "name" | "w" | "d" | "l" | "pct";
+
 function AllTimeWinsTable({
   standings,
   teamMetaMap,
@@ -347,6 +349,9 @@ function AllTimeWinsTable({
   teamMetaMap: Map<string, TeamMeta>;
   titles: Map<string, number>;
 }) {
+  const [sortKey, setSortKey] = useState<SortKey>("pct");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
   // Agrega todas as temporadas por time
   const byTeam = new Map<string, { w: number; d: number; l: number; gp: number }>();
   for (const row of standings) {
@@ -358,69 +363,113 @@ function AllTimeWinsTable({
     rec.gp += row.gp;
   }
 
+  const nameOf = (tid: string) => teamMetaMap.get(tid)?.name ?? tid;
+  const pctOf = (r: { w: number; gp: number }) => (r.gp > 0 ? r.w / r.gp : 0);
+  const mul = sortDir === "asc" ? 1 : -1;
+
   const rows = Array.from(byTeam.entries())
     .map(([tid, rec]) => ({ tid, ...rec }))
-    .sort((a, b) => b.w - a.w || b.d - a.d);
+    .sort((a, b) => {
+      let c: number;
+      if (sortKey === "name") c = nameOf(a.tid).localeCompare(nameOf(b.tid), "pt-BR");
+      else if (sortKey === "pct") c = pctOf(a) - pctOf(b);
+      else c = a[sortKey] - b[sortKey];
+      if (c !== 0) return c * mul;
+      // desempate: mais vitórias, depois nome
+      return b.w - a.w || nameOf(a.tid).localeCompare(nameOf(b.tid), "pt-BR");
+    });
+
+  function toggle(k: SortKey) {
+    if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(k);
+      setSortDir(k === "name" ? "asc" : "desc");
+    }
+  }
+
+  function th(k: SortKey, label: string, right: boolean) {
+    const active = sortKey === k;
+    return (
+      <th className={cn("px-4 py-3", right ? "text-right" : "text-left")}>
+        <button
+          type="button"
+          onClick={() => toggle(k)}
+          className={cn(
+            "inline-flex items-center gap-1 font-semibold uppercase tracking-wider transition-colors hover:text-foreground",
+            active && "text-foreground"
+          )}
+        >
+          {label}
+          {active && (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+        </button>
+      </th>
+    );
+  }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <th className="px-4 py-3 w-8">#</th>
-            <th className="w-10 py-3 pl-2 pr-0" />
-            <th className="px-4 py-3 text-left">Time</th>
-            <th className="px-4 py-3 text-right">V</th>
-            <th className="px-4 py-3 text-right">E</th>
-            <th className="px-4 py-3 text-right">D</th>
-            <th className="px-4 py-3 text-right">PCT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => {
-            const meta = teamMetaMap.get(row.tid);
-            const inactive = meta ? !meta.is_active : false;
-            return (
-              <tr
-                key={row.tid}
-                className={cn(
-                  "border-b border-border/60 last:border-0 transition-colors hover:bg-muted/40",
-                  i % 2 === 1 ? "bg-muted/10" : "",
-                  inactive ? "opacity-60" : ""
-                )}
-              >
-                <td className="px-4 py-3 text-muted-foreground tabular-nums">{i + 1}</td>
-                <td className="py-3 pl-2 pr-0">
-                  {meta && <TeamLogo team={meta} />}
-                </td>
-                <td className="px-4 py-3 font-medium">
-                  {meta?.name ?? row.tid}
-                  {(titles.get(row.tid) ?? 0) > 0 && (
-                    <span
-                      className="ml-2 inline-flex items-center gap-0.5 align-middle text-xs font-bold text-amber-600 dark:text-amber-400"
-                      title={`${titles.get(row.tid)} título(s) da liga`}
-                    >
-                      <Trophy className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-                      {titles.get(row.tid)}
-                    </span>
+    <div>
+      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <th className="px-4 py-3 w-8">#</th>
+              <th className="w-10 py-3 pl-2 pr-0" />
+              {th("name", "Time", false)}
+              {th("w", "V", true)}
+              {th("d", "E", true)}
+              {th("l", "D", true)}
+              {th("pct", "PCT", true)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const meta = teamMetaMap.get(row.tid);
+              const inactive = meta ? !meta.is_active : false;
+              return (
+                <tr
+                  key={row.tid}
+                  className={cn(
+                    "border-b border-border/60 last:border-0 transition-colors hover:bg-muted/40",
+                    i % 2 === 1 ? "bg-muted/10" : "",
+                    inactive ? "opacity-60" : ""
                   )}
-                  {inactive && (
-                    <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground">
-                      extinto
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium">{row.w}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.d}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.l}</td>
-                <td className={cn("px-4 py-3 text-right tabular-nums font-medium", pctColor(row.w, row.gp))}>
-                  {pctStr(row.w, row.gp)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                >
+                  <td className="px-4 py-3 text-muted-foreground tabular-nums">{i + 1}</td>
+                  <td className="py-3 pl-2 pr-0">
+                    {meta && <TeamLogo team={meta} />}
+                  </td>
+                  <td className="px-4 py-3 font-medium">
+                    {meta?.name ?? row.tid}
+                    {(titles.get(row.tid) ?? 0) > 0 && (
+                      <span
+                        className="ml-2 inline-flex items-center gap-0.5 align-middle text-xs font-bold text-amber-600 dark:text-amber-400"
+                        title={`${titles.get(row.tid)} título(s) da liga`}
+                      >
+                        <Trophy className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                        {titles.get(row.tid)}
+                      </span>
+                    )}
+                    {inactive && (
+                      <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground">
+                        extinto
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium">{row.w}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.d}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.l}</td>
+                  <td className={cn("px-4 py-3 text-right tabular-nums font-medium", pctColor(row.w, row.gp))}>
+                    {pctStr(row.w, row.gp)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Ordenado por {({ name: "time", w: "vitórias", d: "empates", l: "derrotas", pct: "PCT" } as const)[sortKey]}. Clique no título de uma coluna para reordenar.
+      </p>
     </div>
   );
 }
@@ -697,19 +746,33 @@ function SeasonFilter({
   onChange,
 }: {
   seasons: Season[];
-  selected: string | null;
-  onChange: (id: string | null) => void;
+  selected: string[];
+  onChange: (ids: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label = selected
-    ? `Temporada ${seasons.find((s) => s.id === selected)?.label ?? ""}`
-    : "Todas as temporadas";
+  const [draft, setDraft] = useState<string[]>(selected);
+
+  const label =
+    selected.length === 0
+      ? "Todas as temporadas"
+      : selected.length === 1
+        ? `Temporada ${seasons.find((s) => s.id === selected[0])?.label ?? ""}`
+        : `${selected.length} temporadas`;
+
+  function openMenu() {
+    setDraft(selected);
+    setOpen(true);
+  }
+
+  function toggleSeason(id: string) {
+    setDraft((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
+  }
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
       >
         <span>{label}</span>
@@ -719,18 +782,32 @@ function SeasonFilter({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-border bg-card shadow-md">
-            <ul className="py-1">
-              {[
-                { id: null, label: "Todas as temporadas" },
-                ...seasons.map((s) => ({ id: s.id, label: `Temporada ${s.label}` })),
-              ].map((opt) => {
-                const active = opt.id === selected;
+          <div className="absolute left-0 top-full z-20 mt-1 w-64 overflow-hidden rounded-lg border border-border bg-card shadow-md">
+            <ul className="max-h-72 overflow-y-auto py-1">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setDraft([])}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-sm hover:bg-accent"
+                >
+                  <span className={cn(
+                    "flex h-4 w-4 flex-none items-center justify-center rounded border",
+                    draft.length === 0
+                      ? "border-[color:var(--court)] bg-[color:var(--court)]"
+                      : "border-border bg-background"
+                  )}>
+                    {draft.length === 0 && <Check className="h-3 w-3 text-white" />}
+                  </span>
+                  <span>Todas as temporadas</span>
+                </button>
+              </li>
+              {seasons.map((s) => {
+                const active = draft.includes(s.id);
                 return (
-                  <li key={opt.id ?? "all"}>
+                  <li key={s.id}>
                     <button
                       type="button"
-                      onClick={() => { onChange(opt.id); setOpen(false); }}
+                      onClick={() => toggleSeason(s.id)}
                       className="flex w-full items-center gap-3 px-3 py-2 text-sm hover:bg-accent"
                     >
                       <span className={cn(
@@ -741,12 +818,28 @@ function SeasonFilter({
                       )}>
                         {active && <Check className="h-3 w-3 text-white" />}
                       </span>
-                      <span>{opt.label}</span>
+                      <span>Temporada {s.label}</span>
                     </button>
                   </li>
                 );
               })}
             </ul>
+            <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setDraft([])}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Limpar
+              </button>
+              <button
+                type="button"
+                onClick={() => { onChange(draft); setOpen(false); }}
+                className="rounded-md bg-[color:var(--court)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+              >
+                OK
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -777,7 +870,7 @@ function Skeleton() {
 
 function RecordesPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
   const [teamStats, setTeamStats] = useState<TeamStatRow[]>([]);
   const [seasonStandings, setSeasonStandings] = useState<SeasonStandingRow[]>([]);
   const [teamMetaMap, setTeamMetaMap] = useState<Map<string, TeamMeta>>(new Map());
@@ -826,7 +919,7 @@ function RecordesPage() {
     if (allSeasonIds.length === 0) return;
 
     setLoading(true);
-    const ids = selectedSeason ? [selectedSeason] : allSeasonIds;
+    const ids = selectedSeasons.length > 0 ? selectedSeasons : allSeasonIds;
 
     Promise.all([
       supabase.rpc("team_game_stats_totals", { season_ids: ids }),
@@ -838,7 +931,7 @@ function RecordesPage() {
       setSeasonStandings((standingsRes.data ?? []) as SeasonStandingRow[]);
       setLoading(false);
     });
-  }, [selectedSeason, allSeasonIds]);
+  }, [selectedSeasons, allSeasonIds]);
 
   // ── Recordes por categoria ────────────────────────────────────────────────
 
@@ -858,7 +951,7 @@ function RecordesPage() {
     const labelById = new Map(seasons.map((s) => [s.id, s.label]));
     const covered = new Set(history.map((h) => h.season_id));
     const fromHistory = history
-      .filter((h) => !selectedSeason || h.season_id === selectedSeason)
+      .filter((h) => selectedSeasons.length === 0 || selectedSeasons.includes(h.season_id))
       .map((h) => ({
         team_id: h.team_id,
         team_name: h.name_at_time,
@@ -871,7 +964,7 @@ function RecordesPage() {
       }));
     const fromGames = seasonStandings.filter((r) => !covered.has(r.season_id));
     return [...fromHistory, ...fromGames];
-  }, [history, seasons, seasonStandings, selectedSeason]);
+  }, [history, seasons, seasonStandings, selectedSeasons]);
 
   // Títulos da liga por time (só campeão da liga)
   const leagueTitles = useMemo(() => {
@@ -936,14 +1029,21 @@ function RecordesPage() {
 
       {tab === "recordes" && (
         <div className="mb-10">
-          <SeasonFilter seasons={seasons} selected={selectedSeason} onChange={setSelectedSeason} />
+          <SeasonFilter seasons={seasons} selected={selectedSeasons} onChange={setSelectedSeasons} />
         </div>
       )}
 
       {tab === "recordes" && (loading ? <Skeleton /> : (
         <div className="space-y-12">
 
-          {/* 1. Recordes por categoria */}
+          {/* 1. Mais vitoriosos (histórico) */}
+          <section>
+            <SectionTitle icon={<Trophy className="h-5 w-5" />} title="Mais vitórias no histórico" />
+            <AllTimeWinsTable standings={mergedStandings} teamMetaMap={teamMetaMap} titles={leagueTitles} />
+            <MergeNotes />
+          </section>
+
+          {/* 2. Recordes por categoria */}
           <section>
             <SectionTitle icon={<Trophy className="h-5 w-5" />} title="Recordes por categoria" />
             <p className="-mt-2 mb-4 text-xs text-muted-foreground">
@@ -964,23 +1064,16 @@ function RecordesPage() {
             </div>
           </section>
 
-          {/* 2. Recordes de temporada */}
+          {/* 3. Recordes de temporada */}
           <section>
             <SectionTitle icon={<Award className="h-5 w-5" />} title="Recordes de temporada" />
             <SeasonRecordsTable best={seasonRecords.best} worst={seasonRecords.worst} />
           </section>
 
-          {/* 3. Mais vitórias/derrotas numa temporada */}
+          {/* 4. Mais vitórias/derrotas numa temporada */}
           <section>
             <SectionTitle icon={<TrendingUp className="h-5 w-5" />} title="Marcas em uma temporada" />
             <StreakTable standings={mergedStandings} />
-          </section>
-
-          {/* 4. All-time wins */}
-          <section>
-            <SectionTitle icon={<Trophy className="h-5 w-5" />} title="Mais vitórias no histórico" />
-            <AllTimeWinsTable standings={mergedStandings} teamMetaMap={teamMetaMap} titles={leagueTitles} />
-            <MergeNotes />
           </section>
 
         </div>
