@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useState, useMemo } from "react";
 import { supabase } from "../integrations/supabase/client";
 import {
   ChevronDown, Check, Trophy, TrendingUp, Award,
@@ -52,6 +52,36 @@ type TeamMeta = {
   logo_url: string | null;
   primary_color: string | null;
 };
+
+type HistoryRow = {
+  season_id: string;
+  team_id: string;
+  name_at_time: string;
+  conference: "Donut" | "Bad Boys" | null;
+  wins: number;
+  ties: number;
+  losses: number;
+  conference_position: number | null;
+};
+
+type ChampionRow = {
+  season_id: string;
+  cancelled: boolean;
+  league_champion_id: string | null;
+  donut_champion_id: string | null;
+  donut_runner_up_id: string | null;
+  bad_boys_champion_id: string | null;
+  bad_boys_runner_up_id: string | null;
+  note: string | null;
+};
+
+type Tab = "recordes" | "campanhas" | "campeoes";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "recordes", label: "Recordes" },
+  { key: "campanhas", label: "Campanhas" },
+  { key: "campeoes", label: "Campeões" },
+];
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
@@ -384,6 +414,270 @@ function AllTimeWinsTable({
   );
 }
 
+// ─── Histórico (planilha + jogos) ─────────────────────────────────────────────
+
+const MERGE_NOTES: string[] = [
+  "Interlagos Racecars e Pinheiros Racecars são o mesmo time: campanhas e títulos estão somados sob Pinheiros Racecars.",
+  "New World Vultures (2011/12 e 2012/13) está somado ao RJ Drugdealers.",
+];
+
+function MergeNotes() {
+  return (
+    <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+      {MERGE_NOTES.map((n) => (
+        <li key={n}>* {n}</li>
+      ))}
+    </ul>
+  );
+}
+
+const TIEBREAK_APPROX_SEASONS = ["24/25", "25/26"];
+
+function CampanhasView({
+  history,
+  seasons,
+  teamMetaMap,
+  champions,
+}: {
+  history: HistoryRow[];
+  seasons: Season[];
+  teamMetaMap: Map<string, TeamMeta>;
+  champions: ChampionRow[];
+}) {
+  const available = useMemo(() => {
+    const ids = new Set(history.map((h) => h.season_id));
+    return seasons.filter((s) => ids.has(s.id));
+  }, [history, seasons]);
+  const [sid, setSid] = useState<string | null>(null);
+  const current = sid ?? available[0]?.id ?? null;
+  const currentLabel = available.find((s) => s.id === current)?.label ?? "";
+  const ch = champions.find((c) => c.season_id === current) ?? null;
+
+  function badge(teamId: string): { text: string; cls: string } | null {
+    if (!ch || ch.cancelled) return null;
+    if (ch.league_champion_id === teamId)
+      return { text: "Campeão", cls: "bg-purple-600/15 text-purple-700 dark:text-purple-300" };
+    if (ch.donut_champion_id === teamId || ch.bad_boys_champion_id === teamId)
+      return { text: "Campeão da conferência", cls: "bg-emerald-600/15 text-emerald-700 dark:text-emerald-300" };
+    if (ch.donut_runner_up_id === teamId || ch.bad_boys_runner_up_id === teamId)
+      return { text: "Vice da conferência", cls: "bg-muted text-muted-foreground" };
+    return null;
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <select
+          value={current ?? ""}
+          onChange={(e) => setSid(e.target.value)}
+          className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium"
+        >
+          {available.map((s) => (
+            <option key={s.id} value={s.id}>Temporada {s.label}</option>
+          ))}
+        </select>
+        {ch?.cancelled && (
+          <span className="text-sm text-muted-foreground">Temporada cancelada (COVID) — sem campeão.</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {(["Donut", "Bad Boys"] as const).map((conf) => {
+          const rows = history
+            .filter((h) => h.season_id === current && h.conference === conf)
+            .sort((a, b) => (a.conference_position ?? 99) - (b.conference_position ?? 99));
+          return (
+            <div key={conf} className="overflow-x-auto rounded-lg border border-border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <th className="px-3 py-3 text-left" colSpan={3}>Conferência {conf}</th>
+                    <th className="px-3 py-3 text-right">V</th>
+                    <th className="px-3 py-3 text-right">E</th>
+                    <th className="px-3 py-3 text-right">D</th>
+                    <th className="px-3 py-3 text-right">PCT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const meta = teamMetaMap.get(r.team_id);
+                    const b = badge(r.team_id);
+                    const gp = r.wins + r.ties + r.losses;
+                    return (
+                      <tr key={r.team_id} className="border-b border-border/60 last:border-0 hover:bg-muted/40">
+                        <td className="px-3 py-2.5 w-8 text-muted-foreground tabular-nums">{r.conference_position}</td>
+                        <td className="py-2.5 pl-1 pr-0 w-9">{meta && <TeamLogo team={meta} />}</td>
+                        <td className="px-3 py-2.5 font-medium">
+                          {r.name_at_time}
+                          {b && (
+                            <span className={cn("ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide", b.cls)}>
+                              {b.text}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums font-medium">{r.wins}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{r.ties}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{r.losses}</td>
+                        <td className={cn("px-3 py-2.5 text-right tabular-nums font-medium", pctColor(r.wins, gp))}>
+                          {pctStr(r.wins, gp)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+
+      {TIEBREAK_APPROX_SEASONS.includes(currentLabel) && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          * Posição calculada por vitórias e empates; pode diferir do critério oficial de desempate.
+        </p>
+      )}
+      <MergeNotes />
+    </div>
+  );
+}
+
+function CampeoesView({
+  history,
+  seasons,
+  teamMetaMap,
+  champions,
+}: {
+  history: HistoryRow[];
+  seasons: Season[];
+  teamMetaMap: Map<string, TeamMeta>;
+  champions: ChampionRow[];
+}) {
+  const nameAt = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const h of history) m.set(`${h.season_id}:${h.team_id}`, h.name_at_time);
+    return m;
+  }, [history]);
+
+  const labelOf = (id: string) => seasons.find((s) => s.id === id)?.label ?? "";
+  const startOf = (id: string) => seasons.find((s) => s.id === id)?.start_year ?? 0;
+
+  const rows = useMemo(
+    () => [...champions].sort((a, b) => startOf(b.season_id) - startOf(a.season_id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [champions, seasons],
+  );
+
+  function nm(seasonId: string, teamId: string | null) {
+    if (!teamId) return "—";
+    return nameAt.get(`${seasonId}:${teamId}`) ?? teamMetaMap.get(teamId)?.name ?? "—";
+  }
+
+  const ranking = useMemo(() => {
+    const t = new Map<string, { liga: number; conf: number }>();
+    const bump = (id: string | null, k: "liga" | "conf") => {
+      if (!id) return;
+      if (!t.has(id)) t.set(id, { liga: 0, conf: 0 });
+      t.get(id)![k] += 1;
+    };
+    for (const c of champions) {
+      if (c.cancelled) continue;
+      bump(c.league_champion_id, "liga");
+      bump(c.donut_champion_id, "conf");
+      bump(c.bad_boys_champion_id, "conf");
+    }
+    return Array.from(t.entries())
+      .map(([id, v]) => ({ id, ...v, name: teamMetaMap.get(id)?.name ?? id }))
+      .sort((a, b) => b.liga - a.liga || b.conf - a.conf || a.name.localeCompare(b.name));
+  }, [champions, teamMetaMap]);
+
+  return (
+    <div className="space-y-12">
+      <section>
+        <SectionTitle icon={<Trophy className="h-5 w-5" />} title="Campeões por temporada" />
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 text-left">Temporada</th>
+                <th className="px-4 py-3 text-left">Campeão da liga</th>
+                <th className="px-4 py-3 text-left">Donut (campeão / vice)</th>
+                <th className="px-4 py-3 text-left">Bad Boys (campeão / vice)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => (
+                <Fragment key={c.season_id}>
+                  <tr className="border-b border-border/60 last:border-0 hover:bg-muted/40">
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{labelOf(c.season_id)}</td>
+                    {c.cancelled ? (
+                      <td colSpan={3} className="px-4 py-3 text-muted-foreground">Temporada cancelada (COVID) — sem campeão.</td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 font-semibold text-purple-600 dark:text-purple-400">
+                          {nm(c.season_id, c.league_champion_id)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-medium">{nm(c.season_id, c.donut_champion_id)}</span>
+                          <span className="text-muted-foreground"> / {nm(c.season_id, c.donut_runner_up_id)}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-medium">{nm(c.season_id, c.bad_boys_champion_id)}</span>
+                          <span className="text-muted-foreground"> / {nm(c.season_id, c.bad_boys_runner_up_id)}</span>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                  {!c.cancelled && c.note && (
+                    <tr className="border-b border-border/60 last:border-0">
+                      <td />
+                      <td colSpan={3} className="px-4 pb-3 text-xs text-muted-foreground">{c.note}</td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <SectionTitle icon={<Award className="h-5 w-5" />} title="Ranking de títulos" />
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 w-8">#</th>
+                <th className="w-10 py-3 pl-2 pr-0" />
+                <th className="px-4 py-3 text-left">Time</th>
+                <th className="px-4 py-3 text-right">Liga</th>
+                <th className="px-4 py-3 text-right">Conferência</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranking.map((r, i) => {
+                const meta = teamMetaMap.get(r.id);
+                return (
+                  <tr key={r.id} className="border-b border-border/60 last:border-0 hover:bg-muted/40">
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums">{i + 1}</td>
+                    <td className="py-3 pl-2 pr-0">{meta && <TeamLogo team={meta} />}</td>
+                    <td className="px-4 py-3 font-medium">{r.name}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-purple-600 dark:text-purple-400">{r.liga}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.conf}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Títulos de conferência incluem os campeões da liga. Temporada 2019/20 cancelada.
+        </p>
+        <MergeNotes />
+      </section>
+    </div>
+  );
+}
+
 // ─── Season filter ────────────────────────────────────────────────────────────
 
 function SeasonFilter({
@@ -477,19 +771,27 @@ function RecordesPage() {
   const [seasonStandings, setSeasonStandings] = useState<SeasonStandingRow[]>([]);
   const [teamMetaMap, setTeamMetaMap] = useState<Map<string, TeamMeta>>(new Map());
   const [allSeasonIds, setAllSeasonIds] = useState<string[]>([]);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [champions, setChampions] = useState<ChampionRow[]>([]);
+  const [metaReady, setMetaReady] = useState(false);
+  const [tab, setTab] = useState<Tab>("recordes");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Carrega metadados uma vez
   useEffect(() => {
     (async () => {
-      const [seasonsRes, teamsRes] = await Promise.all([
+      // types.ts não conhece as tabelas novas do histórico
+      const db = supabase as unknown as { from: (t: string) => any };
+      const [seasonsRes, teamsRes, histRes, champRes] = await Promise.all([
         supabase.from("seasons").select("id, label, start_year, is_current").order("start_year", { ascending: false }),
         supabase.from("teams").select("id, name, slug, is_active, logo_url, primary_color"),
+        db.from("season_team_history").select("season_id, team_id, name_at_time, conference, wins, ties, losses, conference_position"),
+        db.from("season_champions").select("season_id, cancelled, league_champion_id, donut_champion_id, donut_runner_up_id, bad_boys_champion_id, bad_boys_runner_up_id, note"),
       ]);
 
-      if (seasonsRes.error || teamsRes.error) {
-        setError(seasonsRes.error?.message ?? teamsRes.error?.message ?? "Erro");
+      if (seasonsRes.error || teamsRes.error || histRes.error || champRes.error) {
+        setError(seasonsRes.error?.message ?? teamsRes.error?.message ?? histRes.error?.message ?? champRes.error?.message ?? "Erro");
         setLoading(false);
         return;
       }
@@ -501,7 +803,10 @@ function RecordesPage() {
 
       setSeasons((seasonsRes.data ?? []) as Season[]);
       setTeamMetaMap(tMap);
+      setHistory((histRes.data ?? []) as HistoryRow[]);
+      setChampions((champRes.data ?? []) as ChampionRow[]);
       setAllSeasonIds(ids);
+      setMetaReady(true);
     })();
   }, []);
 
@@ -536,11 +841,32 @@ function RecordesPage() {
 
   // ── Recordes de temporada ────────────────────────────────────────────────
 
+  // Histórico (planilha + jogos) cobre 2008/09–2025/26; temporadas fora dele
+  // (ex.: a atual, em andamento) continuam vindo dos jogos.
+  const mergedStandings = useMemo<SeasonStandingRow[]>(() => {
+    const labelById = new Map(seasons.map((s) => [s.id, s.label]));
+    const covered = new Set(history.map((h) => h.season_id));
+    const fromHistory = history
+      .filter((h) => !selectedSeason || h.season_id === selectedSeason)
+      .map((h) => ({
+        team_id: h.team_id,
+        team_name: h.name_at_time,
+        season_id: h.season_id,
+        season_label: labelById.get(h.season_id) ?? "",
+        w: h.wins,
+        d: h.ties,
+        l: h.losses,
+        gp: h.wins + h.ties + h.losses,
+      }));
+    const fromGames = seasonStandings.filter((r) => !covered.has(r.season_id));
+    return [...fromHistory, ...fromGames];
+  }, [history, seasons, seasonStandings, selectedSeason]);
+
   const seasonRecords = useMemo(() => {
-    if (seasonStandings.length === 0) return { best: null, worst: null };
-    const sorted = [...seasonStandings].sort((a, b) => b.w - a.w || b.d - a.d);
+    if (mergedStandings.length === 0) return { best: null, worst: null };
+    const sorted = [...mergedStandings].sort((a, b) => b.w - a.w || b.d - a.d);
     return { best: sorted[0] ?? null, worst: sorted[sorted.length - 1] ?? null };
-  }, [seasonStandings]);
+  }, [mergedStandings]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 md:px-8 md:py-16">
@@ -554,19 +880,54 @@ function RecordesPage() {
         </h1>
       </div>
 
-      {/* Filtro */}
-      <div className="mb-10">
-        <SeasonFilter seasons={seasons} selected={selectedSeason} onChange={setSelectedSeason} />
+      {/* Abas */}
+      <div className="mb-8 flex gap-1 border-b border-border">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={cn(
+              "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              tab === t.key
+                ? "border-[color:var(--court)] text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {error && <p className="mb-6 text-sm text-destructive">Erro: {error}</p>}
 
-      {loading ? <Skeleton /> : (
+      {tab === "campanhas" && (
+        metaReady
+          ? <CampanhasView history={history} seasons={seasons} teamMetaMap={teamMetaMap} champions={champions} />
+          : <Skeleton />
+      )}
+
+      {tab === "campeoes" && (
+        metaReady
+          ? <CampeoesView history={history} seasons={seasons} teamMetaMap={teamMetaMap} champions={champions} />
+          : <Skeleton />
+      )}
+
+      {tab === "recordes" && (
+        <div className="mb-10">
+          <SeasonFilter seasons={seasons} selected={selectedSeason} onChange={setSelectedSeason} />
+        </div>
+      )}
+
+      {tab === "recordes" && (loading ? <Skeleton /> : (
         <div className="space-y-12">
 
           {/* 1. Recordes por categoria */}
           <section>
             <SectionTitle icon={<Trophy className="h-5 w-5" />} title="Recordes por categoria" />
+            <p className="-mt-2 mb-4 text-xs text-muted-foreground">
+              Calculados só com as temporadas que têm jogos importados.
+            </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {catRecords.map((cat) => (
                 <RecordCard
@@ -591,17 +952,18 @@ function RecordesPage() {
           {/* 3. Mais vitórias/derrotas numa temporada */}
           <section>
             <SectionTitle icon={<TrendingUp className="h-5 w-5" />} title="Marcas em uma temporada" />
-            <StreakTable standings={seasonStandings} />
+            <StreakTable standings={mergedStandings} />
           </section>
 
           {/* 4. All-time wins */}
           <section>
             <SectionTitle icon={<Trophy className="h-5 w-5" />} title="Mais vitórias no histórico" />
-            <AllTimeWinsTable standings={seasonStandings} teamMetaMap={teamMetaMap} />
+            <AllTimeWinsTable standings={mergedStandings} teamMetaMap={teamMetaMap} />
+            <MergeNotes />
           </section>
 
         </div>
-      )}
+      ))}
     </div>
   );
 }
