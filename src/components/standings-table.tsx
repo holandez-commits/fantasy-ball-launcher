@@ -202,10 +202,12 @@ function StreakBadge({ streak }: { streak: StandingEntry["streak"] }) {
       : streak.type === "L"
         ? "text-red-600 dark:text-red-400"
         : "text-amber-600 dark:text-amber-400";
+  // internamente W/L/D (jogo ganho/perdido/empatado); na tela: V (vitória), E (empate), D (derrota)
+  const label = streak.type === "W" ? "V" : streak.type === "L" ? "D" : "E";
   return (
     <span className={cn("font-medium tabular-nums", colorClass)}>
       {streak.count}
-      {streak.type}
+      {label}
     </span>
   );
 }
@@ -214,7 +216,7 @@ function L5Badge({ last5 }: { last5: StandingEntry["last5"] }) {
   if (!last5) return <span className="text-muted-foreground">—</span>;
   return (
     <span className="tabular-nums text-muted-foreground">
-      {last5.w}-{last5.l}-{last5.d}
+      {last5.w}-{last5.d}-{last5.l}
     </span>
   );
 }

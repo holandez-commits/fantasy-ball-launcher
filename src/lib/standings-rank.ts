@@ -1,5 +1,5 @@
 /**
- * Campanha (V-D-E) e posição na conferência de um time.
+ * Campanha (V-E-D) e posição na conferência de um time.
  * Mesma regra da tabela de classificação: vitórias desc, empates desc, nome.
  * Só times ativos entram no ranking. Sem nenhum jogo final na conferência, a ordem seria
  * apenas alfabética, então a posição não é informada.

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequireAuth } from "@/lib/auth";
+import { espnPlayerUrl, espnSearchUrl } from "@/lib/links";
 import { standingFor, type ConfTeam, type StandRow, type Standing } from "@/lib/standings-rank";
 import { Button } from "@/components/ui/button";
 import {
@@ -151,7 +152,7 @@ function OppBadge({ opp, size = 32 }: { opp: Opponent; size?: number }) {
 
 function standingText(s: Standing | null, conference: string | null): string | null {
   if (!s) return null;
-  const rec = `${s.w}-${s.l}-${s.d}`;
+  const rec = `${s.w}-${s.d}-${s.l}`; // V-E-D
   return s.rank != null && conference ? `${rec} · ${s.rank}º na ${conference}` : rec;
 }
 
@@ -164,6 +165,7 @@ function EscalarPage() {
   const [lock, setLock] = useState<Lock | null>(null);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
+  const [espnIds, setEspnIds] = useState<Record<string, string>>({});
   const [games, setGames] = useState<GameInfo[]>([]);
   const [gamesWithLineup, setGamesWithLineup] = useState<string[]>([]);
   /** escalação gravada no banco, por jogo */
@@ -252,10 +254,12 @@ function EscalarPage() {
 
         const playerIds = [...new Set(rosterRows.map((r) => r.player_id))];
         if (playerIds.length > 0) {
-          const pRes = await db.from("players").select("id, full_name").in("id", playerIds);
+          const pRes = await db.from("players").select("id, full_name, espn_id").in("id", playerIds);
           if (pRes.error) throw new Error(pRes.error.message);
-          setNames(
-            Object.fromEntries((pRes.data as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name])),
+          const pRows = pRes.data as { id: string; full_name: string; espn_id: string | null }[];
+          setNames(Object.fromEntries(pRows.map((p) => [p.id, p.full_name])));
+          setEspnIds(
+            Object.fromEntries(pRows.filter((p) => p.espn_id).map((p) => [p.id, String(p.espn_id)])),
           );
         }
 
@@ -798,7 +802,19 @@ function EscalarPage() {
               p.status !== "active" && "text-muted-foreground line-through",
             )}
           >
-            <span>{nameOf(p.player_id)}</span>
+            <a
+              href={
+                espnIds[p.player_id]
+                  ? espnPlayerUrl(espnIds[p.player_id])
+                  : espnSearchUrl(nameOf(p.player_id))
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Ver na ESPN"
+              className="hover:text-[color:var(--court)] hover:underline"
+            >
+              {nameOf(p.player_id)}
+            </a>
             <span className="text-xs">
               {p.position}
               {p.status !== "active" && " · lesionado"}

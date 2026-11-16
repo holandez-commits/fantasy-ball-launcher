@@ -89,7 +89,7 @@ async function fetchGvizCached(docId: string, gid: string): Promise<string> {
 
 const TEAM_COLS = "id, name, slug, logo_url, primary_color, sheet_nickname, conference";
 
-// Campanha (V-D-E) e posição na conferência, mesma regra da tabela de classificação:
+// Campanha (V-E-D) e posição na conferência, mesma regra da tabela de classificação:
 // vitórias desc, empates desc, nome. Só times ativos entram no ranking.
 // Falha de leitura = sem campanha na tela, nunca erro.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -500,7 +500,7 @@ function TeamSide({ team, align, dim }: { team: TeamMeta; align: "left" | "right
         <p className="truncate font-display text-lg leading-tight tracking-tight md:text-xl">{team.name}</p>
         {team.standing && (
           <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-            {team.standing.w}-{team.standing.l}-{team.standing.d}
+            {team.standing.w}-{team.standing.d}-{team.standing.l}
             {team.standing.rank != null && team.conference
               ? ` · ${team.standing.rank}º na ${team.conference}`
               : ""}
@@ -559,7 +559,16 @@ function BoxScore({
     <div>
       <h3 className="mb-2 font-display text-lg tracking-tight">{title}</h3>
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
+        {/* table-fixed + colgroup: as duas tabelas (casa/fora) têm exatamente as mesmas larguras de coluna,
+            independente do tamanho dos nomes; o nome do jogador ocupa o espaço que sobra. */}
+        <table className="w-full min-w-[640px] table-fixed text-sm">
+          <colgroup>
+            <col />
+            {CATEGORIES.map((c) => (
+              <col key={c.key} className="w-[52px]" />
+            ))}
+            <col className="w-[180px]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-2 text-left font-semibold">Jogador</th>
@@ -612,7 +621,7 @@ function BoxScore({
                   <td className="px-2 py-2 text-right tabular-nums">{fmt(p.blk)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmt(p.three_pm)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmt(p.turnovers)}</td>
-                  <td className="whitespace-nowrap border-l border-border px-3 py-2 text-muted-foreground">
+                  <td className="truncate border-l border-border px-3 py-2 text-muted-foreground" title={p.reserve ?? undefined}>
                     {p.reserve ?? "—"}
                   </td>
                 </tr>

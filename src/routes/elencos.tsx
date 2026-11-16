@@ -1,18 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
-import { Shield } from "lucide-react";
+import { ChevronRight, Shield } from "lucide-react";
 
 type TeamRow = {
   id: string;
   name: string;
   abbreviation: string;
   slug: string;
-  city: string | null;
+  conference: string | null;
   primary_color: string | null;
-  secondary_color: string | null;
   logo_url: string | null;
-  founded_year: number | null;
   gm: { id: string; full_name: string; nickname: string | null } | null;
 };
 
@@ -28,6 +26,9 @@ export const Route = createFileRoute("/elencos")({
   component: ElencosPage,
 });
 
+// Ordem fixa das conferências (a mesma das abas da classificação).
+const CONFERENCES = ["Donut", "Bad Boys"] as const;
+
 function ElencosPage() {
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,9 +40,8 @@ function ElencosPage() {
       setLoading(true);
       const { data, error: err } = await supabase
         .from("teams")
-        .select(
-          "id, name, abbreviation, slug, city, primary_color, secondary_color, logo_url, founded_year, gm:gms(id, full_name, nickname)",
-        )
+        .select("id, name, abbreviation, slug, conference, primary_color, logo_url, gm:gms(id, full_name, nickname)")
+        .eq("is_active", true)
         .order("name");
       if (cancelled) return;
       if (err) setError(err.message);
@@ -53,73 +53,76 @@ function ElencosPage() {
     };
   }, []);
 
+  // Agrupa por conferência; time sem conferência cai em "Outros" (só aparece se existir).
+  const groups = useMemo(() => {
+    const known = CONFERENCES.map((c) => ({ name: c as string, teams: teams.filter((t) => t.conference === c) }));
+    const others = teams.filter((t) => !t.conference || !(CONFERENCES as readonly string[]).includes(t.conference));
+    return [...known, { name: "Outros", teams: others }].filter((g) => g.teams.length > 0);
+  }, [teams]);
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 md:px-8 md:py-16">
+    <div className="mx-auto max-w-6xl px-4 py-10 md:px-8 md:py-14">
       <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--court)]">Times & jogadores</p>
       <h1 className="mt-3 font-display text-4xl tracking-tight md:text-5xl">Elencos</h1>
-      <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-        As franquias da liga e seus respectivos comandantes.
+      <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">
+        Escolha um time para ver o elenco.
       </p>
 
-      <div className="mt-10">
+      <div className="mt-8">
         {loading && <p className="text-sm text-muted-foreground">Carregando times…</p>}
         {error && <p className="text-sm text-destructive">Erro ao carregar times: {error}</p>}
         {!loading && !error && teams.length === 0 && <EmptyTeams />}
         {!loading && !error && teams.length > 0 && (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {teams.map((team) => {
-              const primary = team.primary_color || "var(--chrome)";
-              return (
-                <li key={team.id}>
-                  <Link
-                    to="/times/$slug"
-                    params={{ slug: team.slug }}
-                    className="block overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-[color:var(--court)]"
-                  >
-                    <div className="h-2 w-full" style={{ background: primary }} />
-                    <div className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div
-                          className="flex h-12 w-12 flex-none items-center justify-center rounded-lg text-sm font-display font-semibold text-white"
-                          style={{ background: primary }}
-                        >
-                          {team.logo_url ? (
-                            <img src={team.logo_url} alt={team.name} className="h-full w-full rounded-lg object-cover" />
-                          ) : (
-                            <span>{team.abbreviation}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <h2 className="font-display text-lg leading-tight">{team.name}</h2>
-                          <p className="mt-0.5 text-xs uppercase tracking-wider text-muted-foreground">
-                            {team.abbreviation}
-                            {team.city ? ` · ${team.city}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <dl className="mt-4 space-y-1.5 text-sm">
-                        <div className="flex items-center justify-between gap-2">
-                          <dt className="text-muted-foreground">GM</dt>
-                          <dd className="truncate font-medium">
-                            {team.gm ? team.gm.full_name : <span className="text-muted-foreground">—</span>}
-                          </dd>
-                        </div>
-                        {team.founded_year && (
-                          <div className="flex items-center justify-between gap-2">
-                            <dt className="text-muted-foreground">Fundado em</dt>
-                            <dd className="font-medium">{team.founded_year}</dd>
-                          </div>
-                        )}
-                      </dl>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-8">
+            {groups.map((g) => (
+              <section key={g.name}>
+                <div className="mb-3 flex items-baseline gap-3 border-b border-border pb-2">
+                  <h2 className="font-display text-xl tracking-tight">{g.name}</h2>
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                    {g.teams.length} times
+                  </span>
+                </div>
+                <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {g.teams.map((team) => (
+                    <li key={team.id}>
+                      <TeamCard team={team} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+function TeamCard({ team }: { team: TeamRow }) {
+  const primary = team.primary_color || "var(--chrome)";
+  return (
+    <Link
+      to="/times/$slug"
+      params={{ slug: team.slug }}
+      className="group flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 transition-colors hover:border-[color:var(--court)] hover:bg-muted/40"
+      style={{ borderLeftWidth: 4, borderLeftColor: primary }}
+    >
+      <div
+        className="flex h-9 w-9 flex-none items-center justify-center overflow-hidden rounded-full text-[11px] font-semibold text-white"
+        style={{ background: primary }}
+      >
+        {team.logo_url ? (
+          <img src={team.logo_url} alt={team.name} className="h-full w-full object-cover" />
+        ) : (
+          <span>{team.abbreviation}</span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium leading-tight">{team.name}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{team.gm ? team.gm.full_name : "—"}</p>
+      </div>
+      <ChevronRight className="h-4 w-4 flex-none text-muted-foreground/50 transition-colors group-hover:text-[color:var(--court)]" />
+    </Link>
   );
 }
 

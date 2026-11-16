@@ -114,7 +114,14 @@ function singleTeamSummary(m: Mov): {
     team,
     verb,
     player: p?.player ?? "—",
-    pos: m.type === "release" ? (p?.pos ?? null) : null, // dispensa mostra a posição
+    // dispensa e contratação mostram a posição. A RPC lê a posição AO VIVO (elenco > snapshot > foto):
+    // se o admin definir depois, a movimentação se corrige sozinha. Contratação sem posição = "a definir".
+    pos:
+      m.type === "release"
+        ? (p?.pos ?? null)
+        : m.type === "signing"
+          ? (p?.pos ?? "Posição a definir")
+          : null,
     extra,
   };
 }
