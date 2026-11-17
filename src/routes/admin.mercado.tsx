@@ -105,7 +105,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 const EXEC_LABEL: Record<string, string> = {
   release: "Executar dispensa",
-  ir: "Executar IR",
+  ir: "Executar lesionado",
   trade: "Executar troca",
 };
 
@@ -530,7 +530,7 @@ function AdminMercadoPage() {
     setBusyId(null);
     if (error) setResult({ ok: false, message: error.message });
     else {
-      setResult({ ok: true, message: typeof data === "string" ? data : "IR reativado." });
+      setResult({ ok: true, message: typeof data === "string" ? data : "Lesionado reativado." });
       void load();
     }
   }
@@ -858,7 +858,7 @@ function AdminMercadoPage() {
                 )}
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                A cada 15 minutos, se houver novidade (troca, dispensa, contratação de FA, IR e volta do IR), vai um
+                A cada 15 minutos, se houver novidade (troca, dispensa, contratação de FA, lesionados e volta de lesão), vai um
                 único e-mail para {mail.recipient}. Pendentes agora: {mail.pending}.
                 {mail.last_run_at && (
                   <>
@@ -957,7 +957,7 @@ function AdminMercadoPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       {t.type === "ir" && (
                         <select
-                          aria-label="Tipo de IR"
+                          aria-label="Tipo de lesão"
                           value={irTypeChoice[t.id] ?? (t.ir_type as IrType | null) ?? "partial"}
                           onChange={(e) =>
                             setIrTypeChoice((m) => ({ ...m, [t.id]: e.target.value as IrType }))
@@ -978,20 +978,20 @@ function AdminMercadoPage() {
             )}
           </section>
 
-          {/* IR: lista única (tempo fora + reativação) */}
+          {/* Lesionados: lista única (tempo fora + reativação) */}
           <section className="mt-12">
             <h2 className="mb-2 font-display text-xl tracking-tight">
-              Jogadores em IR{irRows.length > 0 ? ` (${irRows.length})` : ""}
+              Lesionados{irRows.length > 0 ? ` (${irRows.length})` : ""}
             </h2>
             <p className="mb-3 text-xs text-muted-foreground">
-              IR parcial: pode voltar a qualquer momento, se houver vaga (com 15 ativos, o time
-              precisa dispensar ou trocar alguém antes); o cap não muda. IR fora da temporada: só a
+              Lesão parcial: pode voltar a qualquer momento, se houver vaga (com 15 ativos, o time
+              precisa dispensar ou trocar alguém antes); o cap não muda. Lesão fora da temporada: só a
               partir da temporada seguinte, e o salário volta a contar 100%. "Forçar" fura cap e
               vaga (override). Ordenado do mais antigo para o mais novo; “desde o início” = já estava
-              no IR na importação do elenco (a data real não existe).
+              lesionado na importação do elenco (a data real não existe).
             </p>
             {irRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum jogador em IR.</p>
+              <p className="text-sm text-muted-foreground">Nenhum jogador lesionado.</p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border bg-card">
                 <table className="w-full text-sm">
@@ -1000,7 +1000,7 @@ function AdminMercadoPage() {
                       <th className="px-3 py-2 text-left">Jogador</th>
                       <th className="px-3 py-2 text-left">Time</th>
                       <th className="px-3 py-2 text-left">Tipo</th>
-                      <th className="px-3 py-2 text-right">Dias no IR</th>
+                      <th className="px-3 py-2 text-right">Dias lesionado</th>
                       <th className="px-3 py-2 text-left">Desde</th>
                       <th className="px-3 py-2 text-left">Elenco</th>
                       <th className="px-3 py-2 text-right">Ações</th>

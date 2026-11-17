@@ -247,7 +247,7 @@ function RosterTable({
   // Totais por ano
   const totals: Record<string, number> = {};
   for (const year of CONTRACT_YEARS) totals[year] = 0;
-  // IR fora da temporada: só 20% do salário da temporada atual conta (IR parcial conta 100%).
+  // Lesão fora da temporada: só 20% do salário da temporada atual conta (lesão parcial conta 100%).
   const capSalaryOf = (entry: RosterEntry, label: string, salary: number) =>
     entry.status === "injured_reserve" && entry.ir_type === "out_of_season" && label === CONTRACT_YEARS[0]
       ? Math.round(salary * 0.2)
@@ -334,15 +334,15 @@ function RosterTable({
                       className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-600"
                       title={
                         entry.ir_type === "out_of_season"
-                          ? "IR fora da temporada: libera a vaga e só 20% do salário atual conta no cap"
-                          : "IR parcial: libera a vaga; o salário continua contando no cap"
+                          ? "Lesão fora da temporada: libera a vaga e só 20% do salário atual conta no cap"
+                          : "Lesão parcial: libera a vaga; o salário continua contando no cap"
                       }
                     >
                       {entry.ir_type === "out_of_season"
-                        ? "IR · fora da temp."
+                        ? "Lesionado · fora da temp."
                         : entry.ir_type === "partial"
-                          ? "IR · parcial"
-                          : "IR"}
+                          ? "Lesionado · parcial"
+                          : "Lesionado"}
                     </span>
                   )}
                 </td>

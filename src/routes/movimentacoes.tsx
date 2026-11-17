@@ -18,7 +18,7 @@ export const Route = createFileRoute("/movimentacoes")({
       { title: "Movimentações — Liga Bola Presa de Fantasy" },
       {
         name: "description",
-        content: "Todas as movimentações da liga: dispensas, trocas, contratações e IR.",
+        content: "Todas as movimentações da liga: dispensas, trocas, contratações e lesionados.",
       },
     ],
   }),
@@ -85,7 +85,7 @@ function multaLabel(it: MovItem): string {
   return `Multa ${it.penalty_season ? `${it.penalty_season} · ` : ""}${fmtMoney(it.amount ?? 0)}`;
 }
 
-/** Linha-resumo pra movimentações de um time só (dispensa / IR / contratação). */
+/** Linha-resumo pra movimentações de um time só (dispensa / lesionado / contratação). */
 function singleTeamSummary(m: Mov): {
   team: string;
   verb: string;
@@ -99,10 +99,10 @@ function singleTeamSummary(m: Mov): {
       ? "dispensou"
       : m.type === "ir"
         ? m.ir_type === "out_of_season"
-          ? "moveu para o IR (fora da temporada)"
+          ? "moveu para lesionados (lesão fora da temporada)"
           : m.ir_type === "partial"
-            ? "moveu para o IR parcial"
-            : "moveu para o IR"
+            ? "moveu para lesionados (lesão parcial)"
+            : "moveu para lesionados"
         : m.type === "signing"
           ? "contratou"
           : "movimentou";
@@ -261,7 +261,7 @@ function MovimentacoesPage() {
       </p>
       <h1 className="mt-1 font-display text-3xl">Movimentações</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Dispensas, trocas, contratações e IR já processados pelo admin. Atualiza automaticamente.
+        Dispensas, trocas, contratações e lesionados já processados pelo admin. Atualiza automaticamente.
       </p>
 
       {ready && (filtros.months.length > 0 || filtros.teams.length > 0) && (

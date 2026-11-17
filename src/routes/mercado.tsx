@@ -288,7 +288,7 @@ function MercadoPage() {
       const activeEntries = entries.filter((e) => e.status === "active");
       const irEntries = entries.filter((e) => e.status === "injured_reserve");
 
-      // contratos de todos (ativos e IR): o IR também mostra quanto do salário conta no cap
+      // contratos de todos (ativos e lesionados): a lista de lesionados também mostra quanto do salário conta no cap
       const allIds = entries.map((e) => e.id);
       let cy: { roster_entry_id: string; season_label: string; salary: number }[] = [];
       if (allIds.length > 0) {
@@ -447,7 +447,7 @@ function MercadoPage() {
     setIrChoice(null);
     if (error) setResult({ ok: false, message: error.message });
     else {
-      setResult({ ok: true, message: "IR solicitado. Agora aguarda a aprovação do admin." });
+      setResult({ ok: true, message: "Pedido enviado. Agora aguarda a aprovação do admin." });
       void load();
     }
   }
@@ -506,7 +506,7 @@ function MercadoPage() {
           </p>
           <h1 className="mt-1 font-display text-3xl">Mercado</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Dispense, coloque em IR ou proponha trocas. Toda movimentação passa pela aprovação do
+            Dispense, mande para lesionados ou proponha trocas. Toda movimentação passa pela aprovação do
             admin.
           </p>
         </div>
@@ -672,7 +672,7 @@ function MercadoPage() {
             </section>
           )}
 
-          {/* Meu elenco — dispensa / IR */}
+          {/* Meu elenco — dispensa / lesionados */}
           <section className="mt-10">
             <h2 className="mb-4 font-display text-xl tracking-tight">Meu elenco</h2>
             {roster.length === 0 ? (
@@ -740,7 +740,7 @@ function MercadoPage() {
                           <td className="px-4 py-2.5 text-right">
                             {pending ? (
                               <span className="inline-flex items-center rounded bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                                {pendRel ? "dispensa na fila" : "IR pendente"}
+                                {pendRel ? "dispensa na fila" : "lesionado pendente"}
                               </span>
                             ) : (
                               <div className="flex justify-end gap-2">
@@ -763,7 +763,7 @@ function MercadoPage() {
                                     setIrTarget(p);
                                   }}
                                 >
-                                  Pôr em IR
+                                  Mandar para lesionados
                                 </Button>
                               </div>
                             )}
@@ -782,11 +782,11 @@ function MercadoPage() {
             </p>
           </section>
 
-          {/* Lesionados (IR) */}
+          {/* Lesionados */}
           <section className="mt-12">
-            <h2 className="mb-2 font-display text-xl tracking-tight">Reserva de lesionados (IR)</h2>
+            <h2 className="mb-2 font-display text-xl tracking-tight">Lesionados</h2>
             {irList.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum jogador em IR.</p>
+              <p className="text-sm text-muted-foreground">Nenhum jogador lesionado.</p>
             ) : (
               <>
                 <div className="overflow-x-auto rounded-lg border border-border bg-card">
@@ -797,7 +797,7 @@ function MercadoPage() {
                         <th className="px-4 py-3 text-left">Pos</th>
                         <th className="px-4 py-3 text-left">Tipo</th>
                         <th className="px-3 py-3 text-right">No cap {season?.label}</th>
-                        <th className="px-4 py-3 text-left">No IR há</th>
+                        <th className="px-4 py-3 text-left">Lesionado há</th>
                         <th className="px-4 py-3 text-right"></th>
                       </tr>
                     </thead>
@@ -841,7 +841,7 @@ function MercadoPage() {
                                 variant="outline"
                                 size="sm"
                                 disabled={submitting}
-                                title={`Pedir a volta de ${p.name} do IR?`}
+                                title={`Pedir a volta de ${p.name}?`}
                                 description={<p>O pedido segue para aprovação do admin.</p>}
                                 confirmLabel="Pedir volta"
                                 onConfirm={() => pedirVoltaIr(p.playerId)}
@@ -856,9 +856,9 @@ function MercadoPage() {
                   </table>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Jogador em IR não ocupa vaga. IR parcial: o salário continua contando no cap. IR
+                  Jogador lesionado não ocupa vaga. Lesão parcial: o salário continua contando no cap. Lesão
                   fora da temporada: conta só 20% do salário da temporada atual e o retorno é só na
-                  próxima temporada. No IR parcial, você pede a volta aqui: com vaga no elenco (menos de 15
+                  próxima temporada. Na lesão parcial, você pede a volta aqui: com vaga no elenco (menos de 15
                   ativos) o jogador volta na hora e já pode ser escalado; sem vaga, dispense alguém
                   antes.
                 </p>
@@ -963,7 +963,7 @@ function MercadoPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Confirmação de IR */}
+      {/* Confirmação de lesionado */}
       <AlertDialog
         open={!!irTarget}
         onOpenChange={(o) => {
@@ -975,9 +975,9 @@ function MercadoPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Pôr {irTarget?.name} em IR?</AlertDialogTitle>
+            <AlertDialogTitle>Mandar {irTarget?.name} para lesionados?</AlertDialogTitle>
             <AlertDialogDescription>
-              Escolha o tipo de IR. A proposta vai para a fila do admin, que decide se o pedido é
+              Escolha o tipo de lesão. A proposta vai para a fila do admin, que decide se o pedido é
               válido.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1012,7 +1012,7 @@ function MercadoPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <Button onClick={() => void confirmarIr()} disabled={submitting || !irChoice}>
-              {submitting ? "Enviando..." : "Solicitar IR"}
+              {submitting ? "Enviando..." : "Solicitar"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

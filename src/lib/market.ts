@@ -1,4 +1,4 @@
-// Helpers compartilhados das telas do mercado (dispensa, troca, leilão, IR).
+// Helpers compartilhados das telas do mercado (dispensa, troca, leilão, lesionados).
 // Mantém o padrão do escalar.tsx / admin.fechar-semana.tsx: acesso "frouxo" ao
 // banco porque o types.ts é gerado do PROD — traz as TABELAS do mercado, mas não
 // as RPCs do motor (que, por ora, só vivem no staging).
@@ -106,7 +106,7 @@ export const TX_TYPE_LABEL: Record<string, string> = {
   release: "Dispensa",
   trade: "Troca",
   signing: "Contratação",
-  ir: "IR",
+  ir: "Lesionados",
 };
 
 // ─── IR ──────────────────────────────────────────────────────────────────────
@@ -114,8 +114,8 @@ export const TX_TYPE_LABEL: Record<string, string> = {
 export type IrType = "partial" | "out_of_season";
 
 export const IR_TYPE_LABEL: Record<IrType, string> = {
-  partial: "IR parcial",
-  out_of_season: "IR fora da temporada",
+  partial: "Lesão parcial",
+  out_of_season: "Lesão fora da temporada",
 };
 
 export const IR_TYPE_RULE: Record<IrType, string> = {
@@ -129,7 +129,7 @@ export function irTypeLabel(t: string | null | undefined): string | null {
   return t === "partial" || t === "out_of_season" ? IR_TYPE_LABEL[t] : null;
 }
 
-/** Parte do salário da temporada atual que conta no cap de um jogador em IR. */
+/** Parte do salário da temporada atual que conta no cap de um jogador lesionado. */
 export function irCapSalary(salary: number, t: string | null | undefined): number {
   return t === "out_of_season" ? Math.round(salary * 0.2) : salary;
 }

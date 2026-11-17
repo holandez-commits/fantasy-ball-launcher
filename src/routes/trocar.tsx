@@ -38,7 +38,7 @@ export const Route = createFileRoute("/trocar")({
 
 const PENALTY_MIN = 50_000;
 const CAP_LIMIT = 70_000_000; // teto (mesmo valor do servidor)
-const SLOT_LIMIT = 15; // vagas ativas (IR não conta)
+const SLOT_LIMIT = 15; // vagas ativas (lesionado não conta)
 
 type TeamLite = { id: string; name: string };
 type PlayerAsset = {
@@ -975,8 +975,8 @@ function TeamImpact({
           {slotsAfter == null
             ? "máx 15 jogadores ativos"
             : slotsOver
-              ? `${slotsAfter - SLOT_LIMIT} acima do limite (IR não conta)`
-              : `${SLOT_LIMIT - slotsAfter} ${SLOT_LIMIT - slotsAfter === 1 ? "vaga livre" : "vagas livres"} (IR não conta)`}
+              ? `${slotsAfter - SLOT_LIMIT} acima do limite (lesionados não contam)`
+              : `${SLOT_LIMIT - slotsAfter} ${SLOT_LIMIT - slotsAfter === 1 ? "vaga livre" : "vagas livres"} (lesionados não contam)`}
         </p>
       </div>
     </div>

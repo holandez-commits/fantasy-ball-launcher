@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { PrepareResult, LivePlacar } from "@/lib/confronto-server";
 import { prepararFn, restantesFn, callRpc } from "@/lib/finalizar";
+import { LinksJogos } from "@/components/LinksJogos";
 
 export const Route = createFileRoute("/admin/resultados")({
   head: () => ({
@@ -372,6 +373,15 @@ function ResultadosPage() {
           {liveLoading ? "Lendo planilhas…" : "Atualizar restantes"}
         </Button>
       </div>
+
+      {week != null && (
+        <LinksJogos
+          weekLabel={`Semana ${week}`}
+          games={games}
+          teamNames={teams}
+          onSaved={() => void loadGames()}
+        />
+      )}
 
       {report && (
         <Alert className="mt-6">

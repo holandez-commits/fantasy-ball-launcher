@@ -59,7 +59,7 @@ export const navSections: NavSection[] = [
         to: "/movimentacoes",
         label: "Movimentações",
         icon: ArrowLeftRight,
-        desc: "Dispensas, trocas, contratações e IR",
+        desc: "Dispensas, trocas, contratações e lesionados",
       },
       {
         to: "/regras",
@@ -96,7 +96,7 @@ export const navSections: NavSection[] = [
  */
 export const gmItems: NavItem[] = [
   { to: "/escalar", label: "Escalar", icon: ClipboardList, desc: "Montar sua escalação" },
-  { to: "/mercado", label: "Mercado", icon: Store, desc: "Dispensa, IR, trocas e leilão" },
+  { to: "/mercado", label: "Mercado", icon: Store, desc: "Dispensa, lesionados, trocas e leilão" },
   { to: "/classificados", label: "Classificados Bola Presa", icon: Megaphone, desc: "Jogadores e picks disponíveis para troca" },
   { to: "/leilao", label: "Free Agents", icon: UserPlus, desc: "Leilão de jogadores livres" },
 ];

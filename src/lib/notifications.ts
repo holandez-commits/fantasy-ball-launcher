@@ -22,7 +22,7 @@ export const CATEGORY_LABELS: Record<string, { label: string; hint: string }> = 
   jogo: { label: "Jogos do meu time", hint: "Resultado dos confrontos concluídos" },
   troca: { label: "Propostas e decisões", hint: "Propostas recebidas, aceites, recusas e decisões do admin" },
   bloco: { label: "Classificados Bola Presa", hint: "Times que anunciam jogadores e picks para troca" },
-  movimentacao: { label: "Movimentações da liga", hint: "Trocas, dispensas e IR executados por qualquer time" },
+  movimentacao: { label: "Movimentações da liga", hint: "Trocas, dispensas e lesionados executados por qualquer time" },
   leilao: { label: "Leilão", hint: "Contratações do leilão e lances perdidos" },
   admin: { label: "Avisos da administração", hint: "Comunicados gerais" },
 };
