@@ -46,6 +46,14 @@ type Item = {
 
 type TradeItemView = { label: string; fromName: string; toName: string };
 
+function hostDoLink(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "link";
+  }
+}
+
 type TxRow = {
   id: string;
   type: string;
@@ -54,6 +62,7 @@ type TxRow = {
   proposed_by: string | null;
   created_at: string;
   ir_type: string | null;
+  link_noticia: string | null;
   proposerName: string | null;
   teamName: string | null;
   playerName: string | null;
@@ -157,7 +166,7 @@ function AdminMercadoPage() {
 
       const txRes = await db
         .from("transactions")
-        .select("id, type, status, week_number, proposed_by, created_at, ir_type")
+        .select("id, type, status, week_number, proposed_by, created_at, ir_type, link_noticia")
         .in("status", ["proposed", "accepted", "approved"])
         .order("created_at", { ascending: true });
       if (txRes.error) throw new Error(txRes.error.message);
@@ -760,6 +769,23 @@ function AdminMercadoPage() {
           {t.teamName ?? "—"}
           {t.proposerName ? ` · por ${t.proposerName}` : ""}
           {t.multaResumo ? ` · multa ${t.multaResumo}` : ""}
+          {t.type === "ir" &&
+            (t.link_noticia ? (
+              <>
+                {" · "}
+                <a
+                  href={t.link_noticia}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-foreground underline underline-offset-2 hover:text-[color:var(--court)]"
+                >
+                  Ver notícia ↗
+                </a>
+                <span className="ml-1">({hostDoLink(t.link_noticia)})</span>
+              </>
+            ) : (
+              " · sem link da notícia (pedido anterior à exigência)"
+            ))}
         </div>
       )}
     </div>

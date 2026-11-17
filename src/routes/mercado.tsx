@@ -91,6 +91,12 @@ type TradeView = {
   deadline: string | null;
 };
 
+// Mesma regra do banco (solicitar_ir): http(s)://algo.algo, sem espaços, até 500 caracteres.
+function linkNoticiaValido(s: string): boolean {
+  const t = s.trim();
+  return t.length <= 500 && /^https?:\/\/\S+\.\S+$/i.test(t);
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto max-w-4xl px-4 py-12 md:px-6">{children}</div>;
 }
@@ -112,6 +118,7 @@ function MercadoPage() {
   const [relTarget, setRelTarget] = useState<RosterPlayer | null>(null);
   const [irTarget, setIrTarget] = useState<RosterPlayer | null>(null);
   const [irChoice, setIrChoice] = useState<IrType | null>(null);
+  const [irLink, setIrLink] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [busyTrade, setBusyTrade] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -435,16 +442,18 @@ function MercadoPage() {
   }
 
   async function confirmarIr() {
-    if (!irTarget || !irChoice) return;
+    if (!irTarget || !irChoice || !linkNoticiaValido(irLink)) return;
     setSubmitting(true);
     setResult(null);
     const { error } = await callRpc("solicitar_ir", {
       _player_id: irTarget.playerId,
       _ir_type: irChoice,
+      _link_noticia: irLink.trim(),
     });
     setSubmitting(false);
     setIrTarget(null);
     setIrChoice(null);
+    setIrLink("");
     if (error) setResult({ ok: false, message: error.message });
     else {
       setResult({ ok: true, message: "Pedido enviado. Agora aguarda a aprovação do admin." });
@@ -970,6 +979,7 @@ function MercadoPage() {
           if (!submitting && !o) {
             setIrTarget(null);
             setIrChoice(null);
+            setIrLink("");
           }
         }}
       >
@@ -977,8 +987,9 @@ function MercadoPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Mandar {irTarget?.name} para lesionados?</AlertDialogTitle>
             <AlertDialogDescription>
-              Escolha o tipo de lesão. A proposta vai para a fila do admin, que decide se o pedido é
-              válido.
+              Escolha o tipo de lesão e cole o link da notícia que fala da lesão e do tempo que o
+              jogador vai ficar fora. A proposta vai para a fila do admin, que confere o link para
+              decidir se o pedido é válido.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
@@ -1009,9 +1020,39 @@ function MercadoPage() {
               </label>
             ))}
           </div>
+          <div className="space-y-1">
+            <label htmlFor="ir-link" className="block text-sm font-medium">
+              Link da notícia
+            </label>
+            <input
+              id="ir-link"
+              type="url"
+              inputMode="url"
+              value={irLink}
+              onChange={(e) => setIrLink(e.target.value)}
+              placeholder="https://…"
+              disabled={submitting}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <p
+              className={cn(
+                "text-xs",
+                irLink.trim() && !linkNoticiaValido(irLink)
+                  ? "text-destructive"
+                  : "text-muted-foreground",
+              )}
+            >
+              {irLink.trim() && !linkNoticiaValido(irLink)
+                ? "Cole o endereço completo, começando com http:// ou https://."
+                : "Obrigatório. A notícia deve mostrar a lesão e o período fora."}
+            </p>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
-            <Button onClick={() => void confirmarIr()} disabled={submitting || !irChoice}>
+            <Button
+              onClick={() => void confirmarIr()}
+              disabled={submitting || !irChoice || !linkNoticiaValido(irLink)}
+            >
               {submitting ? "Enviando..." : "Solicitar"}
             </Button>
           </AlertDialogFooter>
