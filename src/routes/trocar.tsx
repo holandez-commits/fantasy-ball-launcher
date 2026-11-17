@@ -29,8 +29,9 @@ export const Route = createFileRoute("/trocar")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>): { com?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { com?: string; contra?: string } => ({
     com: typeof search.com === "string" && search.com ? search.com : undefined,
+    contra: typeof search.contra === "string" && search.contra ? search.contra : undefined,
   }),
   component: TrocarPage,
 });
@@ -287,8 +288,10 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
 
 function TrocarPage() {
   const { ready, forbidden, teamId } = useRequireAuth({ role: "gm" });
-  const { com } = Route.useSearch(); // vindo do trade block: já adiciona esse time na proposta
+  const { com, contra } = Route.useSearch(); // com: vindo do trade block; contra: id da proposta a contra-propor
   const comApplied = useRef(false);
+  const contraApplied = useRef(false);
+  const [contraInfo, setContraInfo] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -371,6 +374,88 @@ function TrocarPage() {
     void addTeam(com);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [com, loading, season, teamId, allTeams]);
+
+  // Contra-proposta: carrega os itens de uma proposta existente (mesmos ativos e direções) para o GM editar.
+  useEffect(() => {
+    if (!contra || contraApplied.current || loading || !season || !teamId) return;
+    if (allTeams.length === 0) return;
+    contraApplied.current = true;
+    void (async () => {
+      try {
+        const [txRes, itRes] = await Promise.all([
+          db.from("transactions").select("id, type, status").eq("id", contra).maybeSingle(),
+          db
+            .from("transaction_items")
+            .select("asset_type, player_id, pick_id, source_penalty_id, amount, from_team_id, to_team_id")
+            .eq("transaction_id", contra),
+        ]);
+        const tx = txRes.data as { id: string; type: string; status: string } | null;
+        const its = (itRes.data ?? []) as {
+          asset_type: string;
+          player_id: string | null;
+          pick_id: string | null;
+          source_penalty_id: string | null;
+          amount: number | null;
+          from_team_id: string | null;
+          to_team_id: string | null;
+        }[];
+        if (!tx || tx.type !== "trade" || its.length === 0) {
+          setContraInfo({ ok: false, message: "Proposta original não encontrada." });
+          return;
+        }
+        const teamIds = [
+          ...new Set(its.flatMap((i) => [i.from_team_id, i.to_team_id]).filter(Boolean) as string[]),
+        ];
+        if (!teamIds.includes(teamId)) {
+          setContraInfo({ ok: false, message: "Você não participa dessa proposta." });
+          return;
+        }
+        const others = teamIds.filter((t) => t !== teamId);
+        const loaded = await Promise.all(others.map((t) => loadTeamAssets(t, season)));
+        const byTeam: Record<string, TeamAssets> = { ...assetsByTeam };
+        others.forEach((t, i) => {
+          byTeam[t] = loaded[i];
+        });
+        const next: Record<string, Sel> = {};
+        const missing: string[] = [];
+        for (const it of its) {
+          if (!it.from_team_id || !it.to_team_id) continue;
+          const from = it.from_team_id;
+          const to = it.to_team_id;
+          if (it.asset_type === "player" && it.player_id) {
+            const a = findAsset(byTeam[from], "player", it.player_id);
+            if (a) next[akey(a)] = { from, to };
+            else missing.push("um jogador (já não está no elenco)");
+          } else if (it.asset_type === "pick" && it.pick_id) {
+            const a = findAsset(byTeam[from], "pick", it.pick_id);
+            if (a) next[akey(a)] = { from, to };
+            else missing.push("uma pick (indisponível)");
+          } else if (it.asset_type === "penalty" && it.source_penalty_id) {
+            const pen = byTeam[from]?.penalties.find((p) => p.parts.some((x) => x.id === it.source_penalty_id));
+            if (pen) {
+              const k = akey(pen);
+              const cur = next[k] ? Number(next[k].amount) : 0;
+              next[k] = { from, to, amount: String(cur + (it.amount ?? 0)) };
+            } else {
+              missing.push("uma multa (sem saldo)");
+            }
+          }
+        }
+        setAssetsByTeam(byTeam);
+        setOtherIds(others);
+        setSelected(next);
+        setContraInfo({
+          ok: true,
+          message:
+            "Itens da proposta recebida carregados. Ajuste o que quiser e envie como sua contra-proposta. A proposta original continua pendente até você recusá-la em /mercado." +
+            (missing.length ? ` Não foi possível carregar: ${missing.join("; ")}.` : ""),
+        });
+      } catch (e) {
+        setContraInfo({ ok: false, message: e instanceof Error ? e.message : "Erro ao carregar a proposta." });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contra, loading, season, teamId, allTeams]);
 
   const participating = useMemo(
     () => (teamId ? [teamId, ...otherIds] : otherIds),
@@ -520,6 +605,7 @@ function TrocarPage() {
       setResult({ ok: false, message: error.message });
     } else {
       setSelected({});
+      setContraInfo(null);
       setDone(snapshot);
       // a confirmação ocupa o lugar do formulário: sobe pro topo pra ficar à vista
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -531,6 +617,7 @@ function TrocarPage() {
     setResult(null);
     setOtherIds([]);
     setSelected({});
+    setContraInfo(null);
     comApplied.current = true;
     void load();
   }
@@ -577,6 +664,13 @@ function TrocarPage() {
       <div className="mt-6">
         <MarketStateBanner isOpen={marketOpen} />
       </div>
+
+      {contraInfo && (
+        <Alert variant={contraInfo.ok ? "default" : "destructive"} className="mt-6">
+          <AlertTitle>{contraInfo.ok ? "Contra-proposta" : "Não foi possível carregar a proposta"}</AlertTitle>
+          <AlertDescription>{contraInfo.message}</AlertDescription>
+        </Alert>
+      )}
 
       {loadError && (
         <Alert variant="destructive" className="mt-6">

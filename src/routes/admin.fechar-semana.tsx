@@ -26,7 +26,7 @@ import {
 export const Route = createFileRoute("/admin/fechar-semana")({
   head: () => ({
     meta: [
-      { title: "Fechar semana — Admin — Liga Bola Presa" },
+      { title: "Abrir escalação — Admin — Liga Bola Presa" },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -146,9 +146,9 @@ function FecharSemanaPage() {
   return (
     <div className="mx-auto max-w-xl px-4 py-12">
       <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Admin</p>
-      <h1 className="mt-1 font-display text-3xl">Travar escalação da semana</h1>
+      <h1 className="mt-1 font-display text-3xl">Abrir escalação da semana</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Define o prazo de travamento (lock) das escalações da semana. A foto do elenco é tirada
+        Abre a escalação da semana e define o prazo final (lock) para os GMs escalarem. A foto do elenco é tirada
         sozinha na consolidação do mercado; até o prazo, a escalação enxerga o elenco ao vivo.
       </p>
 
@@ -218,7 +218,7 @@ function FecharSemanaPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="locks">Prazo do lock (horário de Brasília)</Label>
+          <Label htmlFor="locks">Prazo final da escalação (horário de Brasília)</Label>
           <Input
             id="locks"
             type="datetime-local"
@@ -229,13 +229,13 @@ function FecharSemanaPage() {
         </div>
 
         <Button type="submit" disabled={!canSubmit}>
-          Travar semana
+          Abrir escalação
         </Button>
       </form>
 
       {result && (
         <Alert variant={result.ok ? "default" : "destructive"} className="mt-6">
-          <AlertTitle>{result.ok ? "Semana travada" : "Não foi possível travar a semana"}</AlertTitle>
+          <AlertTitle>{result.ok ? "Escalação aberta" : "Não foi possível abrir a escalação"}</AlertTitle>
           <AlertDescription>{result.message}</AlertDescription>
         </Alert>
       )}
@@ -243,17 +243,17 @@ function FecharSemanaPage() {
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !submitting && setConfirmOpen(o)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar trava da semana</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar abertura da escalação</AlertDialogTitle>
             <AlertDialogDescription>
-              Isso vai definir o prazo de travamento (lock) das escalações da semana{" "}
-              {weekNum} da {season?.label} em {locksAt ? formatBrt(locksAt) : ""}. A ação grava no
+              Isso vai abrir a escalação da semana{" "}
+              {weekNum} da {season?.label}, com prazo final em {locksAt ? formatBrt(locksAt) : ""}. A ação grava no
               banco e pode ser repetida para ajustar o prazo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <Button onClick={confirm} disabled={submitting}>
-              {submitting ? "Travando..." : "Confirmar e travar"}
+              {submitting ? "Abrindo..." : "Confirmar e abrir"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

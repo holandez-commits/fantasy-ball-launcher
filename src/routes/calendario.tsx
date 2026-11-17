@@ -210,6 +210,8 @@ function CalendarioPage() {
   const [weekFilter, setWeekFilter] = useState<number | typeof ALL>(ALL);
   const [loading, setLoading] = useState(true);
   const [loadingGames, setLoadingGames] = useState(false);
+  // Semanas expandidas (padrão: tudo recolhido). Com filtro de semana ou time ativo, tudo abre.
+  const [openWeeks, setOpenWeeks] = useState<Set<number>>(new Set());
 
   // Metadados: temporadas (sem as futuras) + times.
   useEffect(() => {
@@ -301,6 +303,18 @@ function CalendarioPage() {
       }));
   }, [filtered]);
 
+  const filtering = weekFilter !== ALL || teamFilter !== ALL;
+  const isOpen = (w: number) => filtering || openWeeks.has(w);
+  const allOpen = grouped.length > 0 && grouped.every((g) => isOpen(g.week));
+  function toggleWeek(w: number) {
+    setOpenWeeks((cur) => {
+      const next = new Set(cur);
+      if (next.has(w)) next.delete(w);
+      else next.add(w);
+      return next;
+    });
+  }
+
   const seasonOptions = seasons.map((s) => ({ value: s.id, label: `Temporada ${s.label}` }));
   const weekSelectOptions = [
     { value: ALL as number | typeof ALL, label: "Todas as semanas" },
@@ -334,6 +348,15 @@ function CalendarioPage() {
           value={weekFilter}
           onChange={(v) => setWeekFilter(v)}
         />
+        {!filtering && grouped.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setOpenWeeks(allOpen ? new Set() : new Set(grouped.map((g) => g.week)))}
+            className="ml-auto rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            {allOpen ? "Recolher todas" : "Expandir todas"}
+          </button>
+        )}
       </div>
 
       {loading || loadingGames ? (
@@ -345,11 +368,29 @@ function CalendarioPage() {
       ) : grouped.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum jogo encontrado.</p>
       ) : (
-        <div className="space-y-10">
-          {grouped.map(({ week, rounds }) => (
-            <section key={week}>
-              <h2 className="mb-3 font-display text-2xl tracking-tight">Semana {week}</h2>
-              <div className="space-y-5">
+        <div className="space-y-3">
+          {grouped.map(({ week, rounds }) => {
+            const all = rounds.flatMap((r) => r.games);
+            const done = all.filter((g) => g.home_score != null && g.away_score != null).length;
+            const open = isOpen(week);
+            return (
+            <section key={week} className="rounded-lg border border-border">
+              <button
+                type="button"
+                onClick={() => toggleWeek(week)}
+                aria-expanded={open}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+              >
+                <span className="font-display text-xl tracking-tight md:text-2xl">Semana {week}</span>
+                <span className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>
+                    {all.length} {all.length === 1 ? "jogo" : "jogos"} · {done}/{all.length} concluídos
+                  </span>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+                </span>
+              </button>
+              {open && (
+              <div className="space-y-5 border-t border-border px-4 py-4">
                 {rounds.map(({ round, games: gs }) => (
                   <div key={round}>
                     {rounds.length > 1 && (
@@ -365,8 +406,10 @@ function CalendarioPage() {
                   </div>
                 ))}
               </div>
+              )}
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -20,6 +20,7 @@ import {
   type ContractYear,
   type IrType,
 } from "@/lib/market";
+import { fetchContractMap, fmtContract } from "@/lib/contracts";
 import { MarketStateBanner } from "@/components/MarketStateBanner";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -170,6 +171,7 @@ function MercadoPage() {
     const pickIds = [...new Set(items.map((i) => i.pick_id).filter(Boolean) as string[])];
 
     const penaltyIds = [...new Set(items.map((i) => i.source_penalty_id).filter(Boolean) as string[])];
+    const contractMap = await fetchContractMap(playerIds).catch(() => new Map());
     const [penRes, teamsRes, playersRes, picksRes] = await Promise.all([
       penaltyIds.length
         ? db.from("team_penalties").select("id, season:seasons(label)").in("id", penaltyIds)
@@ -233,7 +235,9 @@ function MercadoPage() {
           label:
             i.asset_type === "player"
               ? i.player_id
-                ? playerName[i.player_id] ?? "—"
+                ? [playerName[i.player_id] ?? "—", fmtContract(contractMap.get(i.player_id))]
+                    .filter(Boolean)
+                    .join(" · ")
                 : "—"
               : i.asset_type === "pick"
                 ? i.pick_id
@@ -637,6 +641,13 @@ function MercadoPage() {
                                 Recusar
                               </ConfirmButton>
                             </>
+                          )}
+                          {awaitingMe && (
+                            <Button size="sm" variant="outline" asChild>
+                              <Link to="/trocar" search={{ contra: t.id }}>
+                                Contra-proposta
+                              </Link>
+                            </Button>
                           )}
                           {canCancel && (
                             <ConfirmButton

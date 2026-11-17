@@ -16,6 +16,7 @@ import {
   type CurrentSeason,
   type IrType,
 } from "@/lib/market";
+import { fetchContractMap, fmtContract } from "@/lib/contracts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -224,7 +225,7 @@ function AdminMercadoPage() {
         })),
       );
 
-      // semana do leilão/consolidação = semana travada mais recente (roster_locks)
+      // semana do leilão/consolidação = semana com escalação aberta mais recente (roster_locks)
       const wkRes = await db
         .from("roster_locks")
         .select("week_number")
@@ -248,6 +249,15 @@ function AdminMercadoPage() {
         ]),
       ];
       const pickIds = [...new Set(items.map((i) => i.pick_id).filter(Boolean) as string[])];
+      const tradeTxIds = new Set(txs.filter((t) => t.type === "trade").map((t) => t.id));
+      const tradePlayerIds = [
+        ...new Set(
+          items
+            .filter((i) => tradeTxIds.has(i.transaction_id) && i.player_id)
+            .map((i) => i.player_id as string),
+        ),
+      ];
+      const contractMap = await fetchContractMap(tradePlayerIds, cur).catch(() => new Map());
 
       const [gmsRes, teamsRes, playersRes, picksRes] = await Promise.all([
         gmIds.length ? db.from("gms").select("id, full_name").in("id", gmIds) : { data: [] },
@@ -334,7 +344,9 @@ function AdminMercadoPage() {
       const itemLabel = (i: Item): string =>
         i.asset_type === "player"
           ? i.player_id
-            ? playerName[i.player_id] ?? "—"
+            ? [playerName[i.player_id] ?? "—", fmtContract(contractMap.get(i.player_id))]
+                .filter(Boolean)
+                .join(" · ")
             : "—"
           : i.asset_type === "pick"
             ? i.pick_id
@@ -668,7 +680,7 @@ function AdminMercadoPage() {
 
   async function verPreviaCons() {
     if (leilaoWeek == null) {
-      setResult({ ok: false, message: "Nenhuma semana travada pra prévia do leilão." });
+      setResult({ ok: false, message: "Nenhuma semana com escalação aberta pra prévia do leilão." });
       return;
     }
     setBusyId("prev-cons");
@@ -691,7 +703,7 @@ function AdminMercadoPage() {
 
   async function commitCons() {
     if (leilaoWeek == null) {
-      setResult({ ok: false, message: "Nenhuma semana travada." });
+      setResult({ ok: false, message: "Nenhuma semana com escalação aberta." });
       return;
     }
     setBusyId("commit-cons");
@@ -863,56 +875,6 @@ function AdminMercadoPage() {
         </section>
       )}
 
-      {/* IR parcial: tempo sem reativar */}
-      <section className="mt-6 rounded-lg border border-border bg-card p-4">
-        <h2 className="text-sm font-medium">IR parcial: há quanto tempo estão fora</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Do mais antigo para o mais novo. O GM pede a volta em /mercado; sem vaga (15 ativos), precisa dispensar
-          alguém antes. “Desde o início” = já estava no IR na importação do elenco (a data real não existe).
-        </p>
-        {irPainel === null ? (
-          <Skeleton className="mt-3 h-20 w-full" />
-        ) : irPainel.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Nenhum jogador em IR parcial.</p>
-        ) : (
-          <div className="mt-3 overflow-x-auto rounded-md border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="px-3 py-2 text-left">Jogador</th>
-                  <th className="px-3 py-2 text-left">Time</th>
-                  <th className="px-3 py-2 text-right">Dias no IR</th>
-                  <th className="px-3 py-2 text-left">Desde</th>
-                  <th className="px-3 py-2 text-left">Elenco</th>
-                </tr>
-              </thead>
-              <tbody>
-                {irPainel.map((r) => (
-                  <tr key={r.player_id} className="border-b border-border/60 last:border-0">
-                    <td className="px-3 py-2 font-medium">
-                      {r.full_name}
-                      {r.position && <span className="ml-2 text-xs font-normal text-muted-foreground">{r.position}</span>}
-                    </td>
-                    <td className="px-3 py-2">{r.team_name}</td>
-                    <td className="px-3 py-2 text-right font-semibold tabular-nums">{r.dias}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {r.desde_inicio ? "desde o início" : fmtDateTime(r.ir_since)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {r.ativos >= 15 ? (
-                        <span className="text-amber-600 dark:text-amber-400">{r.ativos}/15 · sem vaga</span>
-                      ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400">{r.ativos}/15 · tem vaga</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
       {loading ? (
         <>
           <Skeleton className="mt-8 h-8 w-40" />
@@ -1016,7 +978,7 @@ function AdminMercadoPage() {
             )}
           </section>
 
-          {/* Reativação de IR */}
+          {/* IR: lista única (tempo fora + reativação) */}
           <section className="mt-12">
             <h2 className="mb-2 font-display text-xl tracking-tight">
               Jogadores em IR{irRows.length > 0 ? ` (${irRows.length})` : ""}
@@ -1025,48 +987,88 @@ function AdminMercadoPage() {
               IR parcial: pode voltar a qualquer momento, se houver vaga (com 15 ativos, o time
               precisa dispensar ou trocar alguém antes); o cap não muda. IR fora da temporada: só a
               partir da temporada seguinte, e o salário volta a contar 100%. "Forçar" fura cap e
-              vaga (override).
+              vaga (override). Ordenado do mais antigo para o mais novo; “desde o início” = já estava
+              no IR na importação do elenco (a data real não existe).
             </p>
             {irRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum jogador em IR.</p>
             ) : (
-              <div className="space-y-3">
-                {irRows.map((r) => {
-                  const busy = busyId === "ir:" + r.playerId;
-                  return (
-                    <div
-                      key={r.playerId}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium">{r.name}</div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          {r.teamName ?? "—"}
-                          {r.position ? ` · ${r.position}` : ""}
-                          {irTypeLabel(r.irType) ? ` · ${irTypeLabel(r.irType)}` : ""}
-                          {r.irSince != null ? ` · em IR desde ${r.irSince}` : ""}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => void reativar(r.playerId, false)}
-                          disabled={busy}
-                        >
-                          {busy ? "..." : "Reativar"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void reativar(r.playerId, true)}
-                          disabled={busy}
-                        >
-                          Forçar
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto rounded-lg border border-border bg-card">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-3 py-2 text-left">Jogador</th>
+                      <th className="px-3 py-2 text-left">Time</th>
+                      <th className="px-3 py-2 text-left">Tipo</th>
+                      <th className="px-3 py-2 text-right">Dias no IR</th>
+                      <th className="px-3 py-2 text-left">Desde</th>
+                      <th className="px-3 py-2 text-left">Elenco</th>
+                      <th className="px-3 py-2 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...irRows]
+                      .sort((a, b) => {
+                        const da = irPainel?.find((x) => x.player_id === a.playerId)?.dias ?? -1;
+                        const db2 = irPainel?.find((x) => x.player_id === b.playerId)?.dias ?? -1;
+                        return db2 - da;
+                      })
+                      .map((r) => {
+                        const busy = busyId === "ir:" + r.playerId;
+                        const pn = irPainel?.find((x) => x.player_id === r.playerId);
+                        return (
+                          <tr key={r.playerId} className="border-b border-border/60 last:border-0">
+                            <td className="px-3 py-2 font-medium">
+                              {r.name}
+                              {r.position && (
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">{r.position}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">{r.teamName ?? "—"}</td>
+                            <td className="px-3 py-2 text-xs">{irTypeLabel(r.irType) || "—"}</td>
+                            <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                              {pn ? pn.dias : irPainel === null ? "…" : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {pn
+                                ? pn.desde_inicio
+                                  ? "desde o início"
+                                  : fmtDateTime(pn.ir_since)
+                                : r.irSince != null
+                                  ? `temporada ${r.irSince}`
+                                  : "—"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {pn ? (
+                                pn.ativos >= 15 ? (
+                                  <span className="text-amber-600 dark:text-amber-400">{pn.ativos}/15 · sem vaga</span>
+                                ) : (
+                                  <span className="text-emerald-600 dark:text-emerald-400">{pn.ativos}/15 · tem vaga</span>
+                                )
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex justify-end gap-2">
+                                <Button size="sm" onClick={() => void reativar(r.playerId, false)} disabled={busy}>
+                                  {busy ? "..." : "Reativar"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void reativar(r.playerId, true)}
+                                  disabled={busy}
+                                >
+                                  Forçar
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
@@ -1078,7 +1080,7 @@ function AdminMercadoPage() {
             </h2>
             {leilaoWeek == null ? (
               <p className="text-sm text-muted-foreground">
-                Nenhuma semana travada (`roster_locks`) — leilão indisponível.
+                Nenhuma semana com escalação aberta (`roster_locks`) — leilão indisponível.
               </p>
             ) : (
               <>
