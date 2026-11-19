@@ -195,15 +195,29 @@ export function parseConfrontoTable(table: Table): {
 
   const totalsOf = (row: Cell[]) => CATEGORIES.map((c) => num(row[c.col]));
 
+  // Algumas abas trazem, no topo do bloco de cima, uma linha de cabeçalho igual à
+  // divisória (col A = apelido do time, col J = "Reservas"). Ela não é jogador:
+  // pula e usa o apelido como fallback do título.
+  let topStart = 0;
+  let headerNick = "";
+  for (let i = 0; i < idxTotal1; i++) {
+    const j = rows[i][9];
+    if (typeof j === "string" && j.trim().toLowerCase() === "reservas") {
+      headerNick = String(rows[i][0] ?? "").trim();
+      topStart = i + 1;
+      break;
+    }
+  }
+
   // Apelido de cima vem do título "{cima} x {baixo} {cima}"; o de baixo, da divisória.
   const title = cols[0]?.label ?? "";
-  const topNick = title.split(/\s+x\s+/i)[0]?.trim() || "";
+  const topNick = title.split(/\s+x\s+/i)[0]?.trim() || headerNick;
   const bottomNick = String(rows[idxDiv][0] ?? "").trim();
 
   return {
     topNick,
     bottomNick,
-    top: { players: slotsFrom(rows, 0, idxTotal1), totals: totalsOf(rows[idxTotal1]) },
+    top: { players: slotsFrom(rows, topStart, idxTotal1), totals: totalsOf(rows[idxTotal1]) },
     bottom: { players: slotsFrom(rows, idxDiv + 1, idxTotal2), totals: totalsOf(rows[idxTotal2]) },
   };
 }
