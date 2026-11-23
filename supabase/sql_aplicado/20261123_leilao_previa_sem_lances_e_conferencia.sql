@@ -1,0 +1,7 @@
+-- s24 (23/11/2026): isonomia no leilão + conferência pós-leilão. Aplicado em PROD.
+-- leilao_previa: só devolve jogador NOVO (is_pending) vencedor; team_id/team_name/salary_offer = null.
+-- consolidar_mercado_previa: Fase 2 mostra só a contagem de contratações projetadas e os jogadores novos.
+-- get_lances_semanas(_season_id): semanas consolidadas (sem lance ativo e com won/lost). Admin.
+-- get_lances_semana(_season_id, _week): todos os lances da semana (jogador, time, valor, status, envio);
+--   recusa semana com lance ativo. Admin. Execute só para authenticated.
+-- Texto completo aplicado: ver migration `leilao_previa_sem_lances_e_conferencia` no Supabase.

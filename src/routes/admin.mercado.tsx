@@ -17,6 +17,7 @@ import {
   type IrType,
 } from "@/lib/market";
 import { fetchContractMap, fmtContract } from "@/lib/contracts";
+import { LancesConferencia } from "@/components/LancesConferencia";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -80,12 +81,11 @@ type IrRow = {
 };
 
 type SigningRow = { entryId: string; name: string; teamName: string | null };
+// A prévia só lista jogador NOVO vencedor (para definir posição). Time e valor dos lances não
+// aparecem: o admin também dá lances, então ver os dos outros quebraria a isonomia.
 type PreviaLeilao = {
   playerId: string;
   playerName: string;
-  teamName: string;
-  salary: number;
-  position: string | null;
   /** jogador novo (lance em nome que não estava no banco): admin define nome/posição/ESPN antes de consolidar */
   isPending: boolean;
   pendingPosition: string | null;
@@ -557,30 +557,8 @@ function AdminMercadoPage() {
       setResult({ ok: false, message: error.message });
       return;
     }
-    const rows = (data ?? []) as {
-      player_id: string;
-      player_name: string;
-      team_name: string;
-      salary_offer: number;
-    }[];
-    // posição = última conhecida do jogador (mesma lógica do auto-preenchimento do signing)
+    const rows = (data ?? []) as { player_id: string; player_name: string }[];
     const ids = [...new Set(rows.map((r) => r.player_id))];
-    const posByPlayer: Record<string, string> = {};
-    if (ids.length > 0) {
-      const posRes = await db
-        .from("roster_entries")
-        .select("player_id, position, season")
-        .in("player_id", ids)
-        .not("position", "is", null)
-        .order("season", { ascending: false });
-      for (const e of (posRes.data ?? []) as {
-        player_id: string;
-        position: string | null;
-        season: number;
-      }[]) {
-        if (e.position && !(e.player_id in posByPlayer)) posByPlayer[e.player_id] = e.position;
-      }
-    }
     // jogadores novos (pendentes): nome "oficial" + posição/ESPN já definidos
     const pendById: Record<
       string,
@@ -608,9 +586,6 @@ function AdminMercadoPage() {
         return {
           playerId: r.player_id,
           playerName: pl?.full_name ?? r.player_name,
-          teamName: r.team_name,
-          salary: r.salary_offer,
-          position: pl?.is_pending ? (pl.pending_position ?? null) : (posByPlayer[r.player_id] ?? null),
           isPending: !!pl?.is_pending,
           pendingPosition: pl?.pending_position ?? null,
           espnId: pl?.espn_id ?? null,
@@ -1128,8 +1103,10 @@ function AdminMercadoPage() {
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Lance em jogador que não estava no banco aparece na prévia como <strong>novo</strong>: confira o
-                  nome, defina a <strong>posição</strong> (obrigatória) e, se souber, o ESPN id antes de consolidar.
+                  A prévia não mostra times nem valores dos lances (para manter a isonomia). Ela lista só os
+                  jogadores <strong>novos</strong> com lance vencedor: confira o nome, defina a{" "}
+                  <strong>posição</strong> (obrigatória) e, se souber, o ESPN id antes de consolidar. Depois da
+                  consolidação, os lances de cada semana ficam em "Conferência dos lances", mais abaixo.
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   "Processar só o leilão" cria os signings mas NÃO processa a fila nem reabre o
@@ -1137,7 +1114,7 @@ function AdminMercadoPage() {
                 </p>
                 {prevLeilao &&
                   (prevLeilao.length === 0 ? (
-                    <p className="mt-3 text-sm text-muted-foreground">Nenhum vencedor projetado.</p>
+                    <p className="mt-3 text-sm text-muted-foreground">Nenhum jogador novo entre os vencedores.</p>
                   ) : (
                     <ul className="mt-3 space-y-2 rounded-lg border border-border bg-card p-3 text-sm">
                       {prevLeilao.map((r, i) =>
@@ -1148,10 +1125,8 @@ function AdminMercadoPage() {
                                 <span className="mr-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                                   novo
                                 </span>
-                                <span className="font-medium">{r.playerName}</span> →{" "}
-                                <span className="font-medium">{r.teamName}</span>
+                                <span className="font-medium">{r.playerName}</span>
                               </span>
-                              <span className="tabular-nums">{fmtMoney(r.salary)}</span>
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <Input
@@ -1209,26 +1184,15 @@ function AdminMercadoPage() {
                               )}
                             </div>
                           </li>
-                        ) : (
-                          <li key={i} className="flex justify-between">
-                            <span>
-                              {r.playerName}
-                              {r.position ? (
-                                <span className="text-muted-foreground"> ({r.position})</span>
-                              ) : (
-                                ""
-                              )}{" "}
-                              → <span className="font-medium">{r.teamName}</span>
-                            </span>
-                            <span className="tabular-nums">{fmtMoney(r.salary)}</span>
-                          </li>
-                        ),
+                        ) : null,
                       )}
                     </ul>
                   ))}
               </>
             )}
           </section>
+
+          {season && <LancesConferencia seasonId={season.id} />}
 
           {/* Definir posição dos signings */}
           <section className="mt-12">

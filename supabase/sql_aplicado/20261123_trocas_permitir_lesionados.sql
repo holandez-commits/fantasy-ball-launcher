@@ -1,0 +1,10 @@
+-- s24 (23/11/2026): jogador lesionado (parcial ou fora da temporada) pode ser trocado, mantendo o status.
+-- Cap: fora da temporada conta 20% do salário (igual team_cap_usage); lesionado não ocupa vaga ativa.
+-- Aplicado em PROD por patch das definições (helper pg_temp.pf com guarda: aborta se o trecho não existir).
+-- Trechos alterados (status = 'active' -> status in ('active','injured_reserve')):
+--   propor_troca, executar_troca, trocas_motivo_invalido, simular_troca, troca_projecao,
+--   get_trade_block_ofertaveis, publicar_trade_block, trade_block_limpar
+-- simular_troca / troca_projecao: salário com case (injured_reserve + out_of_season = round(salary*0.2));
+--   coluna `inj` no CTE psal: dslot = inj - 1 (origem) e 1 - inj (destino).
+-- Mensagens: "não está no elenco do time de origem" (antes "lesionado/ausente não troca").
+-- Texto completo aplicado: ver migration `trocas_permitir_lesionados` no Supabase.

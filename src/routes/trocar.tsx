@@ -49,6 +49,8 @@ type PlayerAsset = {
   salary: number;
   years: number;
   espnId: string | null;
+  /** lesionado: mantém o status ao trocar (parcial = salário 100% no cap; fora da temporada = 20%) */
+  injury: "partial" | "out_of_season" | null;
 };
 type PickAsset = { kind: "pick"; id: string; label: string; origin: string | null; lock?: string | null };
 // Multa consolidada por ano: id = "<time>|<ano>" (único entre os times da troca); parts = linhas reais de team_penalties que a compõem.
@@ -186,14 +188,16 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
   // jogadores ativos
   const reRes = await db
     .from("roster_entries")
-    .select("id, player_id, position, player:players(full_name, espn_id)")
+    .select("id, player_id, position, status, ir_type, player:players(full_name, espn_id)")
     .eq("team_id", teamId)
     .eq("season", season.start_year)
-    .eq("status", "active");
+    .in("status", ["active", "injured_reserve"]);
   const entries = (reRes.data ?? []) as {
     id: string;
     player_id: string;
     position: string | null;
+    status: string;
+    ir_type: string | null;
     player: { full_name: string; espn_id: string | null } | null;
   }[];
   const entryIds = entries.map((e) => e.id);
@@ -212,6 +216,12 @@ async function loadTeamAssets(teamId: string, season: CurrentSeason): Promise<Te
       name: e.player?.full_name ?? "—",
       espnId: e.player?.espn_id ?? null,
       position: e.position,
+      injury:
+        e.status === "injured_reserve"
+          ? e.ir_type === "out_of_season"
+            ? ("out_of_season" as const)
+            : ("partial" as const)
+          : null,
       salary: cy.find((c) => c.roster_entry_id === e.id && c.season_label === season.label)?.salary ?? 0,
       years:
         contractFromYears(
@@ -1109,6 +1119,14 @@ function TeamPanel({
                     <span className="font-medium">{p.name}</span>
                   )}
                   <span className="ml-2 text-xs text-muted-foreground">{p.position ?? "—"}</span>
+                  {p.injury && (
+                    <span
+                      className="ml-2 rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-400"
+                      title="Segue lesionado no novo time, com o mesmo tipo de lesão"
+                    >
+                      {p.injury === "out_of_season" ? "Lesionado · fora da temporada" : "Lesionado · parcial"}
+                    </span>
+                  )}
                   <span className="ml-2 text-xs tabular-nums text-muted-foreground">
                     {p.salary ? fmtMoneyShort(p.salary) : "—"}
                     {p.years > 0 && ` · ${fmtYearsLeft(p.years)}`}
