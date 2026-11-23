@@ -1,0 +1,18 @@
+-- Resumo (já aplicado em PROD via migrations
+-- `consolidar_abre_escalacao_proxima_semana` e `prazo_escalacao_segunda_apos_ultima`).
+-- Código completo: ver pg_get_functiondef das funções abaixo e
+-- claude/CONSOLIDACAO_ABRE_ESCALACAO_S24.md no projeto.
+--
+-- public.proximo_prazo_escalacao() -> timestamptz (interna)
+--   âncora = max(roster_locks.locks_at) da temporada atual;
+--   retorna a primeira segunda 21:00 (America/Sao_Paulo) estritamente depois da âncora.
+--
+-- public.consolidar_mercado_commit(_week)
+--   Fase 5 (após reabrir mercado): abre a escalação da semana _week+1 via
+--   fechar_escalacao_semanal(season, _week+1, proximo_prazo_escalacao()),
+--   só se há jogos na semana e ainda não existe lock.
+--   Se o prazo calculado já passou: NÃO abre; retorna "ATENÇÃO ... abra manualmente".
+--   Blindada por bloco de exceção (não desfaz a consolidação).
+--
+-- public.consolidar_mercado_previa(_week)
+--   Linha "Fase 4 - escalação" (vai abrir / já aberta / sem jogos / prazo já passou).
