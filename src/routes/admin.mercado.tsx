@@ -18,6 +18,8 @@ import {
 } from "@/lib/market";
 import { fetchContractMap, fmtContract } from "@/lib/contracts";
 import { LancesConferencia } from "@/components/LancesConferencia";
+import { SugestaoPosicaoBR, type EstadoBR } from "@/components/SugestaoPosicaoBR";
+import { buscarPosicaoBRFn } from "@/lib/bbref-posicao";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -135,6 +137,8 @@ function AdminMercadoPage() {
   const [prevLeilao, setPrevLeilao] = useState<PreviaLeilao[] | null>(null);
   const [novoEdits, setNovoEdits] = useState<Record<string, { name?: string; pos?: string; espn?: string }>>({});
   const [prevCons, setPrevCons] = useState<PreviaCons[] | null>(null);
+  // sugestões de posição vindas do Basketball Reference (chave = entryId do signing ou playerId do jogador novo)
+  const [sugBR, setSugBR] = useState<Record<string, EstadoBR>>({});
 
   const [toggling, setToggling] = useState(false);
   const [auto, setAuto] = useState<{ enabled: boolean; last_run_at: string | null; last_run_result: string | null } | null>(null);
@@ -640,6 +644,52 @@ function AdminMercadoPage() {
       setPrevLeilao(null);
       void load();
     }
+  }
+
+  /** Busca no Basketball Reference, uma por vez (o site limita 20 consultas/min). Sugestão clara já preenche o campo. */
+  async function buscarBR(
+    itens: { key: string; name: string }[],
+    aoSugerir: (key: string, pos: string) => void,
+  ) {
+    setResult(null);
+    setSugBR((cur) => ({ ...cur, ...Object.fromEntries(itens.map((i) => [i.key, "buscando" as const])) }));
+    for (const it of itens) {
+      let r: EstadoBR;
+      try {
+        r = await buscarPosicaoBRFn({ data: it.name });
+      } catch (e) {
+        r = { ok: false, message: e instanceof Error ? e.message : "Falha na consulta." };
+      }
+      setSugBR((cur) => ({ ...cur, [it.key]: r }));
+      if (r.ok && r.sugestao.status === "clara" && r.sugestao.sugestao) {
+        aoSugerir(it.key, r.sugestao.sugestao);
+      }
+    }
+  }
+
+  async function definirTodasPreenchidas() {
+    const alvos = signings.filter((s) => (posInputs[s.entryId] ?? "").trim());
+    if (alvos.length === 0) {
+      setResult({ ok: false, message: "Nenhuma posição preenchida." });
+      return;
+    }
+    setBusyId("pos:todas");
+    setResult(null);
+    const falhas: string[] = [];
+    for (const s of alvos) {
+      const { error } = await callRpc("set_signing_position", {
+        _roster_entry_id: s.entryId,
+        _position: (posInputs[s.entryId] ?? "").trim(),
+      });
+      if (error) falhas.push(`${s.name}: ${error.message}`);
+    }
+    setBusyId(null);
+    setResult(
+      falhas.length === 0
+        ? { ok: true, message: `Posição definida para ${alvos.length} jogador(es).` }
+        : { ok: false, message: falhas.join(" | ") },
+    );
+    void load();
   }
 
   async function definirPosicao(entryId: string) {
@@ -1172,6 +1222,20 @@ function AdminMercadoPage() {
                               />
                               <Button
                                 size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  void buscarBR(
+                                    [{ key: r.playerId, name: novoEdits[r.playerId]?.name ?? r.playerName }],
+                                    (key, pos) =>
+                                      setNovoEdits((cur) => ({ ...cur, [key]: { ...cur[key], pos } })),
+                                  )
+                                }
+                                disabled={sugBR[r.playerId] === "buscando"}
+                              >
+                                {sugBR[r.playerId] === "buscando" ? "Buscando…" : "Sugerir posição (Basketball Reference)"}
+                              </Button>
+                              <Button
+                                size="sm"
                                 onClick={() => void salvarNovo(r)}
                                 disabled={busyId === "novo:" + r.playerId}
                               >
@@ -1183,6 +1247,13 @@ function AdminMercadoPage() {
                                 </span>
                               )}
                             </div>
+                            <SugestaoPosicaoBR
+                              res={sugBR[r.playerId]}
+                              atual={novoEdits[r.playerId]?.pos ?? r.pendingPosition ?? ""}
+                              onPick={(pos) =>
+                                setNovoEdits((cur) => ({ ...cur, [r.playerId]: { ...cur[r.playerId], pos } }))
+                              }
+                            />
                           </li>
                         ) : null,
                       )}
@@ -1203,15 +1274,41 @@ function AdminMercadoPage() {
               Signings do leilão nascem sem posição. Defina (ex.: <code>PG</code> ou{" "}
               <code>PG/SG</code>) pra o jogador ser escalável nos slots posicionais.
             </p>
+            {signings.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    void buscarBR(
+                      signings.map((x) => ({ key: x.entryId, name: x.name })),
+                      (key, pos) => setPosInputs((cur) => ({ ...cur, [key]: pos })),
+                    )
+                  }
+                  disabled={Object.values(sugBR).includes("buscando")}
+                >
+                  {Object.values(sugBR).includes("buscando") ? "Buscando…" : "Buscar posições no Basketball Reference"}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => void definirTodasPreenchidas()}
+                  disabled={busyId === "pos:todas"}
+                >
+                  {busyId === "pos:todas" ? "..." : "Definir todas as preenchidas"}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  A busca aplica a regra da liga (30% nas 2 últimas temporadas válidas) e preenche só os casos
+                  claros. Confira antes de definir.
+                </span>
+              </div>
+            )}
             {signings.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma contratação aguardando posição.</p>
             ) : (
               <div className="space-y-3">
                 {signings.map((s) => (
-                  <div
-                    key={s.entryId}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
-                  >
+                  <div key={s.entryId} className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-medium">{s.name}</div>
                       <div className="mt-0.5 text-xs text-muted-foreground">{s.teamName ?? "—"}</div>
@@ -1234,6 +1331,12 @@ function AdminMercadoPage() {
                       </Button>
                     </div>
                   </div>
+                  <SugestaoPosicaoBR
+                    res={sugBR[s.entryId]}
+                    atual={(posInputs[s.entryId] ?? "").trim()}
+                    onPick={(pos) => setPosInputs((cur) => ({ ...cur, [s.entryId]: pos }))}
+                  />
+                  </div>
                 ))}
               </div>
             )}
@@ -1245,8 +1348,9 @@ function AdminMercadoPage() {
               Consolidação de domingo{leilaoWeek != null ? ` — semana ${leilaoWeek}` : ""}
             </h2>
             <p className="mb-3 text-xs text-muted-foreground">
-              Processa a fila de dispensas/trocas aprovadas (FIFO), resolve o leilão e REABRE o
-              mercado. Só roda com o mercado fechado.
+              Processa a fila de dispensas/trocas aprovadas (FIFO), resolve o leilão, REABRE o
+              mercado e ABRE a escalação da semana seguinte com prazo na próxima segunda, 21h (se ainda não
+              estiver aberta). Só roda com o mercado fechado.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
