@@ -18,6 +18,7 @@ import {
 } from "@/lib/market";
 import { fetchContractMap, fmtContract } from "@/lib/contracts";
 import { LancesConferencia } from "@/components/LancesConferencia";
+import { EscalacoesDivergentes } from "@/components/EscalacoesDivergentes";
 import { SugestaoPosicaoBR, type EstadoBR } from "@/components/SugestaoPosicaoBR";
 import { buscarPosicaoBRFn } from "@/lib/bbref-posicao";
 import { Button } from "@/components/ui/button";
@@ -933,6 +934,9 @@ function AdminMercadoPage() {
         </>
       ) : (
         <>
+          {/* Aviso: escalações diferentes entre jogos da mesma semana (após o prazo) */}
+          {season && <EscalacoesDivergentes seasonId={season.id} />}
+
           {/* Fila de aprovação */}
           <section className="mt-10">
             <h2 className="mb-4 font-display text-xl tracking-tight">
@@ -982,7 +986,8 @@ function AdminMercadoPage() {
             )}
           </section>
 
-          {/* Aprovadas aguardando execução */}
+          {/* Aprovadas aguardando execução: só aparece se houver item (exceção/fila de fim de semana) */}
+          {aprovadas.length > 0 && (
           <section className="mt-12">
             <h2 className="mb-2 font-display text-xl tracking-tight">
               Aprovadas aguardando execução{aprovadas.length > 0 ? ` (${aprovadas.length})` : ""}
@@ -1028,6 +1033,7 @@ function AdminMercadoPage() {
               </div>
             )}
           </section>
+          )}
 
           {/* Lesionados: lista única (tempo fora + reativação) */}
           <section className="mt-12">

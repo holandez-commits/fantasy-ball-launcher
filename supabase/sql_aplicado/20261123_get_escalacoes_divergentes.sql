@@ -1,0 +1,8 @@
+-- Aplicado em PROD (migration `get_escalacoes_divergentes`).
+-- public.get_escalacoes_divergentes(_season_id uuid, _week integer)
+--   -> (team_id, team_name, jogos int[], diferencas jsonb, locks_at)
+-- Admin only. Só devolve linhas depois de roster_locks.locks_at da semana.
+-- Compara, por time, matchup_lineups/lineup_slots entre os jogos não-playoff da semana:
+-- uma linha por time que tem >1 jogo escalado e algum (posição, titular/reserva) com jogador diferente.
+-- Código completo: pg_get_functiondef no Supabase. Front: src/components/EscalacoesDivergentes.tsx
+-- (usado em /admin/mercado).
