@@ -303,7 +303,7 @@ function calcParcial(data: ConfrontoOriented, proj: ProjResult): Parcial | null 
     const info = resolverLinhas(proj.data, l, side.players, normalizeNick);
     return {
       n: info.filter((i) => i?.subst).length,
-      soma: CATEGORIES.map((_, c) => info.reduce((acc, i) => acc + (i?.subst ? i.subst[c] : 0), 0)),
+      soma: CATEGORIES.map((_, c) => info.reduce((acc, i) => acc + (i?.delta ? i.delta[c] : 0), 0)),
     };
   };
   const H = lado(data.home, "home");
@@ -514,14 +514,6 @@ function ConfrontoView() {
 
               <CategoryTable payload={payload} parcial={parcial} />
 
-              {parcial && (
-                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                  <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
-                  Categoria que muda de resultado com os provisórios. Provisório = reserva cobrindo vaga cujo titular
-                  ainda pode jogar; se ele entrar em quadra, o número volta para o titular.
-                </p>
-              )}
-
               <div className="mt-8 grid gap-8">
                 <BoxScore title={meta.home.name} side={payload.data.home} espn={payload.espn} proj={proj} lado="home" />
                 <BoxScore title={meta.away.name} side={payload.data.away} espn={payload.espn} proj={proj} lado="away" />
@@ -664,72 +656,114 @@ function CategoryTable({
   parcial: Parcial | null;
 }) {
   const { home, away } = payload.data;
+  const homeName = payload.meta.home.name;
+  const awayName = payload.meta.away.name;
+  // Visão da tabela: só existe a escolha quando há provisórios; senão é sempre a planilha.
+  const [view, setView] = useState<"planilha" | "prov">("planilha");
+  const prov = !!parcial && view === "prov";
 
-  // Com provisórios: planilha no centro (como sempre) e, nas pontas, o valor projetado.
-  if (parcial) {
-    const cols = "grid-cols-[1.1fr_1fr_3.5rem_1fr_1.1fr] md:grid-cols-[1.1fr_1fr_4.5rem_1fr_1.1fr]";
-    const prov = "flex h-full items-center gap-2 bg-amber-500/10 px-2 md:px-4";
-    return (
-      <div className="overflow-hidden rounded-lg border border-border">
-        <div className={cn("grid h-8 items-center border-b border-border bg-muted/40 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground md:text-[10px]", cols)}>
-          <div className={cn(prov, "justify-end bg-amber-500/20 text-amber-800 dark:text-amber-300")}>Com provisórios</div>
-          <div className="px-2 text-right md:px-4">Planilha</div>
-          <div />
-          <div className="px-2 md:px-4">Planilha</div>
-          <div className={cn(prov, "bg-amber-500/20 text-amber-800 dark:text-amber-300")}>Com provisórios</div>
+  const rows = CATEGORIES.map((c, i) => {
+    const pr = parcial?.rows[i];
+    const hv = prov && pr ? pr.hp : Number(home.categories[i].value);
+    const av = prov && pr ? pr.ap : Number(away.categories[i].value);
+    const w = vencedor(hv, av, c.lowerWins);
+    const lead = Math.abs(hv - av);
+    const lider = w === "h" ? homeName : awayName;
+    const outro = w === "h" ? awayName : homeName;
+    const title =
+      w === null
+        ? undefined
+        : c.lowerWins
+          ? `${lider} pode cometer mais ${lead} turnover${lead === 1 ? "" : "s"} antes de empatar`
+          : `${outro} precisa de ${lead} para empatar e ${lead + 1} para virar`;
+    return { key: c.key, label: c.label, hv, av, w, lead, title, flip: !!pr && pr.ow !== pr.pw };
+  });
+
+  const winCls = prov ? "font-bold text-amber-800 dark:text-amber-300" : "font-bold text-[color:var(--court)]";
+  const tagCls = prov
+    ? "bg-amber-500/25 text-amber-900 dark:text-amber-200"
+    : "bg-[color:var(--court)]/10 text-[color:var(--court)]";
+
+  const Tag = ({ r }: { r: (typeof rows)[number] }) => (
+    <span title={r.title} aria-label={r.title} className={cn("cursor-help rounded-full px-1.5 py-0.5 text-[11px] font-semibold", tagCls)}>
+      +{r.lead}
+    </span>
+  );
+
+  return (
+    <div>
+      {parcial && (
+        <div className="mb-2 flex justify-end">
+          <div role="group" aria-label="Visão da tabela" className="inline-flex gap-0.5 rounded-full bg-muted p-0.5">
+            <button
+              type="button"
+              aria-pressed={!prov}
+              onClick={() => setView("planilha")}
+              className={cn(
+                "min-h-9 rounded-full px-4 text-xs font-semibold transition-colors",
+                !prov ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Planilha
+            </button>
+            <button
+              type="button"
+              aria-pressed={prov}
+              onClick={() => setView("prov")}
+              className={cn(
+                "min-h-9 rounded-full px-4 text-xs font-semibold transition-colors",
+                prov
+                  ? "bg-amber-100 text-amber-900 shadow-sm dark:bg-amber-500/25 dark:text-amber-100"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Com provisórios
+            </button>
+          </div>
         </div>
-        {parcial.rows.map((r, i) => (
-          <div key={r.key} className={cn("grid h-10 items-center text-sm tabular-nums", cols, i % 2 === 0 ? "bg-card" : "bg-muted/30")}>
-            <div className={cn(prov, "justify-end")}>
-              {r.hd > 0 && <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">+{r.hd}</span>}
-              <span className={cn(r.pw === "h" ? "font-bold text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>{r.hp}</span>
+      )}
+
+      <div className={cn("overflow-hidden rounded-lg border", prov ? "border-amber-500/30 bg-amber-500/5" : "border-border bg-card")}>
+        {rows.map((r, i) => (
+          <div
+            key={r.key}
+            className={cn("grid h-10 grid-cols-[1fr_4.5rem_1fr] items-center text-sm tabular-nums", i % 2 === 1 && "bg-muted/30")}
+          >
+            <div className="flex items-center justify-end gap-2.5 px-4">
+              {r.w === "h" && <Tag r={r} />}
+              <span className={r.w === "h" ? winCls : "text-muted-foreground"}>{r.hv}</span>
             </div>
-            <div className={cn("px-2 text-right md:px-4", r.ow === "h" ? "font-bold text-[color:var(--court)]" : "text-muted-foreground")}>{r.h}</div>
             <div className="flex items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {r.label}
-              {r.ow !== r.pw && (
+              {r.flip && (
                 <span
-                  title="Muda o resultado da categoria com os provisórios"
+                  title="Muda de resultado quando os provisórios entram"
                   className="h-1.5 w-1.5 rounded-full bg-amber-500"
                 />
               )}
             </div>
-            <div className={cn("px-2 text-left md:px-4", r.ow === "a" ? "font-bold text-[color:var(--court)]" : "text-muted-foreground")}>{r.a}</div>
-            <div className={prov}>
-              <span className={cn(r.pw === "a" ? "font-bold text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>{r.ap}</span>
-              {r.ad > 0 && <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">+{r.ad}</span>}
+            <div className="flex items-center gap-2.5 px-4">
+              <span className={r.w === "a" ? winCls : "text-muted-foreground"}>{r.av}</span>
+              {r.w === "a" && <Tag r={r} />}
             </div>
           </div>
         ))}
       </div>
-    );
-  }
 
-  return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      {CATEGORIES.map((cat, i) => {
-        const h = home.categories[i];
-        const a = away.categories[i];
-        return (
-          <div
-            key={cat.key}
-            className={cn(
-              "grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2 text-sm",
-              i % 2 === 0 ? "bg-card" : "bg-muted/30",
-            )}
-          >
-            <span className={cn("text-right tabular-nums", h.won ? "font-bold text-[color:var(--court)]" : "text-muted-foreground")}>
-              {h.value}
-            </span>
-            <span className="w-14 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {cat.label}
-            </span>
-            <span className={cn("text-left tabular-nums", a.won ? "font-bold text-[color:var(--court)]" : "text-muted-foreground")}>
-              {a.value}
-            </span>
-          </div>
-        );
-      })}
+      <div className="mt-3 space-y-1 text-xs leading-relaxed text-muted-foreground">
+        <p>
+          <span className="font-semibold text-foreground">+N</span> ao lado de quem lidera: o adversário precisa de N para
+          empatar e N+1 para virar (passe o mouse para ver a frase). Em TO é o contrário: quantos turnovers a mais o líder
+          ainda pode cometer antes de empatar.
+        </p>
+        {parcial && (
+          <p>
+            <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+            Categoria que muda de resultado com os provisórios. Provisório = reserva cobrindo vaga cujo titular ainda pode
+            jogar; se ele entrar em quadra, o número volta para o titular.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -752,7 +786,7 @@ function BoxScore({
   // status de cada vaga (motor novo) casado pelo nome com a linha da planilha
   const info = resolverLinhas(proj.data, lado, side.players, normalizeNick);
   const nSubst = info.filter((i) => i?.subst).length;
-  const somaSubst = [0, 1, 2, 3, 4, 5, 6].map((c) => info.reduce((acc, i) => acc + (i?.subst ? i.subst[c] : 0), 0));
+  const somaSubst = [0, 1, 2, 3, 4, 5, 6].map((c) => info.reduce((acc, i) => acc + (i?.delta ? i.delta[c] : 0), 0));
   return (
     <div>
       <h3 className="mb-2 font-display text-lg tracking-tight">{title}</h3>

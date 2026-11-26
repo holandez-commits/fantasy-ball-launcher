@@ -447,8 +447,22 @@ function Celula({ j, conta }: { j?: Jogo; conta: boolean }) {
 export type LinhaInfo = {
   chip: { texto: string; cls: string };
   detalhe: string | null;
-  /** pts, reb, ast, stl, blk, 3pm, to do reserva provisório (quando a planilha ainda não mostra nada) */
+  /** pts, reb, ast, stl, blk, 3pm, to que o motor atribui à vaga (reserva cobrindo), quando diferem da planilha */
   subst: number[] | null;
+  /** subst − o que a planilha já soma nessa linha (nulo = 0): é o que entra no total "com provisórios" */
+  delta: number[] | null;
+};
+
+/** Linha do box score da planilha (só o que o motor precisa para comparar). */
+export type LinhaPlanilha = {
+  name: string | null;
+  pts: number | null;
+  reb: number | null;
+  ast: number | null;
+  stl: number | null;
+  blk: number | null;
+  three_pm: number | null;
+  turnovers: number | null;
 };
 
 function fmtProx(j: Jogo) {
@@ -467,7 +481,7 @@ function proximoJogo(p: Jogador | undefined | null): string | null {
 export function resolverLinhas(
   proj: Payload | null,
   lado: "home" | "away",
-  linhas: { name: string | null; pts: number | null }[],
+  linhas: LinhaPlanilha[],
   norm: (s: string) => string,
 ): (LinhaInfo | null)[] {
   if (!proj) return linhas.map(() => null);
@@ -498,9 +512,15 @@ export function resolverLinhas(
       const prox = proximoJogo(tit);
       detalhe = prox ? `próx.: ${prox}` : null;
     }
-    const subst =
-      cobre && l.pts === null ? [s.pts, s.reb, s.ast, s.stl, s.blk, s.tpm, s.tov] : null;
-    return { chip: { texto: info.texto, cls: info.cls }, detalhe, subst };
+    // O motor manda na vaga quando um reserva cobre: se a linha da planilha está vazia ou mostra
+    // outro jogador (ex.: o titular que o motor já usou em outra vaga), valem os números do motor
+    // e só a diferença contra a planilha entra no total — senão o mesmo jogo contaria duas vezes.
+    const usadoNome = nome(s.usado);
+    const motorManda = cobre && (l.pts === null || (!!usadoNome && norm(usadoNome) !== n));
+    const subst = motorManda ? [s.pts, s.reb, s.ast, s.stl, s.blk, s.tpm, s.tov] : null;
+    const planilha = [l.pts, l.reb, l.ast, l.stl, l.blk, l.three_pm, l.turnovers];
+    const delta = subst ? subst.map((v, c) => v - (planilha[c] ?? 0)) : null;
+    return { chip: { texto: info.texto, cls: info.cls }, detalhe, subst, delta };
   });
 }
 
