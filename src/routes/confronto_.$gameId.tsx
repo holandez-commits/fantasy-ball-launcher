@@ -274,6 +274,68 @@ function fmt(v: number | null): string {
   return v === null ? "—" : String(v);
 }
 
+// ─── Parcial com provisórios ─────────────────────────────────────────────────────
+// Soma, por lado, os reservas provisórios que o box score já mostra (linha "Com reservas
+// provisórios") e projeta placar e categorias. Sem nenhum provisório → null e a tela fica
+// exatamente como antes.
+
+type ParcialRow = {
+  key: string;
+  label: string;
+  h: number; // planilha
+  a: number;
+  hp: number; // com provisórios
+  ap: number;
+  hd: number; // acréscimo dos provisórios
+  ad: number;
+  ow: "h" | "a" | null; // vencedor na planilha
+  pw: "h" | "a" | null; // vencedor com provisórios
+};
+type Parcial = { rows: ParcialRow[]; homeScore: number; awayScore: number; homeN: number; awayN: number };
+
+function vencedor(h: number, a: number, lowerWins: boolean): "h" | "a" | null {
+  if (h === a) return null;
+  return (h > a) !== lowerWins ? "h" : "a";
+}
+
+function calcParcial(data: ConfrontoOriented, proj: ProjResult): Parcial | null {
+  const lado = (side: ConfrontoOriented["home"], l: "home" | "away") => {
+    const info = resolverLinhas(proj.data, l, side.players, normalizeNick);
+    return {
+      n: info.filter((i) => i?.subst).length,
+      soma: CATEGORIES.map((_, c) => info.reduce((acc, i) => acc + (i?.subst ? i.subst[c] : 0), 0)),
+    };
+  };
+  const H = lado(data.home, "home");
+  const A = lado(data.away, "away");
+  if (H.n + A.n === 0) return null;
+  const rows = CATEGORIES.map((c, i) => {
+    const h = Number(data.home.categories[i].value);
+    const a = Number(data.away.categories[i].value);
+    const hp = h + H.soma[i];
+    const ap = a + A.soma[i];
+    return {
+      key: c.key,
+      label: c.label,
+      h,
+      a,
+      hp,
+      ap,
+      hd: H.soma[i],
+      ad: A.soma[i],
+      ow: vencedor(h, a, c.lowerWins),
+      pw: vencedor(hp, ap, c.lowerWins),
+    };
+  });
+  return {
+    rows,
+    homeScore: rows.filter((r) => r.pw === "h").length,
+    awayScore: rows.filter((r) => r.pw === "a").length,
+    homeN: H.n,
+    awayN: A.n,
+  };
+}
+
 // ─── Página ──────────────────────────────────────────────────────────────────────
 
 // O "Próximo" navega para a mesma rota com outro gameId: o `key` remonta a página,
@@ -337,6 +399,7 @@ function ConfrontoView() {
   }, [isLive, gameId]);
 
   const meta = payload.meta;
+  const parcial = payload.ok ? calcParcial(payload.data, proj) : null;
 
   // Recarrega na hora (usado após fechar/reabrir a partida)
   async function reload() {
@@ -396,7 +459,7 @@ function ConfrontoView() {
             )}
           </div>
 
-          <Scoreboard payload={payload} />
+          <Scoreboard payload={payload} parcial={parcial} />
 
           <FinalizarPartida
             gameId={meta.gameId}
@@ -449,7 +512,15 @@ function ConfrontoView() {
                 )}
               </div>
 
-              <CategoryTable payload={payload} />
+              <CategoryTable payload={payload} parcial={parcial} />
+
+              {parcial && (
+                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                  <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+                  Categoria que muda de resultado com os provisórios. Provisório = reserva cobrindo vaga cujo titular
+                  ainda pode jogar; se ele entrar em quadra, o número volta para o titular.
+                </p>
+              )}
 
               <div className="mt-8 grid gap-8">
                 <BoxScore title={meta.home.name} side={payload.data.home} espn={payload.espn} proj={proj} lado="home" />
@@ -479,7 +550,7 @@ function ConfrontoView() {
 
 // ─── Placar grande ───────────────────────────────────────────────────────────────
 
-function Scoreboard({ payload }: { payload: ConfrontoPayload }) {
+function Scoreboard({ payload, parcial }: { payload: ConfrontoPayload; parcial: Parcial | null }) {
   const meta = payload.meta!;
   const hs = payload.ok ? payload.data.homeScore : null;
   const as = payload.ok ? payload.data.awayScore : null;
@@ -493,25 +564,53 @@ function Scoreboard({ payload }: { payload: ConfrontoPayload }) {
     <div className="rounded-xl border border-border bg-card p-5 md:p-6">
       <div className="flex items-center justify-between gap-4">
         <TeamSide team={meta.home} align="left" dim={awayWon} />
-        <div className="flex flex-none items-center gap-3 md:gap-5">
-          <span className={cn("font-display text-4xl tabular-nums md:text-6xl", homeWon && "text-[color:var(--court)]")}>
-            {hs ?? "–"}
-          </span>
-          <span className="text-xl text-muted-foreground md:text-2xl">×</span>
-          <span className={cn("font-display text-4xl tabular-nums md:text-6xl", awayWon && "text-[color:var(--court)]")}>
-            {as ?? "–"}
-          </span>
+        <div className="flex flex-none flex-col items-center gap-2.5">
+          <div className="flex items-center gap-3 md:gap-5">
+            <span className={cn("font-display text-4xl tabular-nums md:text-6xl", homeWon && "text-[color:var(--court)]")}>
+              {hs ?? "–"}
+            </span>
+            <span className="text-xl text-muted-foreground md:text-2xl">×</span>
+            <span className={cn("font-display text-4xl tabular-nums md:text-6xl", awayWon && "text-[color:var(--court)]")}>
+              {as ?? "–"}
+            </span>
+          </div>
+          {parcial && (
+            <span
+              title="Placar se os reservas provisórios forem confirmados"
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300 md:text-xs"
+            >
+              Parcial com provisórios
+              <span className="font-display text-base font-medium tabular-nums leading-none md:text-lg">
+                {parcial.homeScore} × {parcial.awayScore}
+              </span>
+            </span>
+          )}
         </div>
         <TeamSide team={meta.away} align="right" dim={homeWon} />
       </div>
 
       {payload.ok && (
         <div className="mt-4 flex items-center justify-between gap-4 border-t border-border/60 pt-3">
-          <PendingTag n={homePending!} align="left" />
-          <PendingTag n={awayPending!} align="right" />
+          <div className="flex flex-wrap items-center gap-2">
+            <PendingTag n={homePending!} align="left" />
+            <ProvTag n={parcial?.homeN ?? 0} />
+          </div>
+          <div className="flex flex-row-reverse flex-wrap items-center gap-2">
+            <PendingTag n={awayPending!} align="right" />
+            <ProvTag n={parcial?.awayN ?? 0} />
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function ProvTag({ n }: { n: number }) {
+  if (n === 0) return null;
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300">
+      {n} {n === 1 ? "reserva provisório" : "reservas provisórios"}
+    </span>
   );
 }
 
@@ -557,8 +656,55 @@ function TeamSide({ team, align, dim }: { team: TeamMeta; align: "left" | "right
 
 // ─── Tabela de categorias (placar por categoria) ────────────────────────────────
 
-function CategoryTable({ payload }: { payload: Extract<ConfrontoPayload, { ok: true }> }) {
+function CategoryTable({
+  payload,
+  parcial,
+}: {
+  payload: Extract<ConfrontoPayload, { ok: true }>;
+  parcial: Parcial | null;
+}) {
   const { home, away } = payload.data;
+
+  // Com provisórios: planilha no centro (como sempre) e, nas pontas, o valor projetado.
+  if (parcial) {
+    const cols = "grid-cols-[1.1fr_1fr_3.5rem_1fr_1.1fr] md:grid-cols-[1.1fr_1fr_4.5rem_1fr_1.1fr]";
+    const prov = "flex h-full items-center gap-2 bg-amber-500/10 px-2 md:px-4";
+    return (
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className={cn("grid h-8 items-center border-b border-border bg-muted/40 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground md:text-[10px]", cols)}>
+          <div className={cn(prov, "justify-end bg-amber-500/20 text-amber-800 dark:text-amber-300")}>Com provisórios</div>
+          <div className="px-2 text-right md:px-4">Planilha</div>
+          <div />
+          <div className="px-2 md:px-4">Planilha</div>
+          <div className={cn(prov, "bg-amber-500/20 text-amber-800 dark:text-amber-300")}>Com provisórios</div>
+        </div>
+        {parcial.rows.map((r, i) => (
+          <div key={r.key} className={cn("grid h-10 items-center text-sm tabular-nums", cols, i % 2 === 0 ? "bg-card" : "bg-muted/30")}>
+            <div className={cn(prov, "justify-end")}>
+              {r.hd > 0 && <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">+{r.hd}</span>}
+              <span className={cn(r.pw === "h" ? "font-bold text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>{r.hp}</span>
+            </div>
+            <div className={cn("px-2 text-right md:px-4", r.ow === "h" ? "font-bold text-[color:var(--court)]" : "text-muted-foreground")}>{r.h}</div>
+            <div className="flex items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {r.label}
+              {r.ow !== r.pw && (
+                <span
+                  title="Muda o resultado da categoria com os provisórios"
+                  className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                />
+              )}
+            </div>
+            <div className={cn("px-2 text-left md:px-4", r.ow === "a" ? "font-bold text-[color:var(--court)]" : "text-muted-foreground")}>{r.a}</div>
+            <div className={prov}>
+              <span className={cn(r.pw === "a" ? "font-bold text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>{r.ap}</span>
+              {r.ad > 0 && <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">+{r.ad}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-border">
       {CATEGORIES.map((cat, i) => {
