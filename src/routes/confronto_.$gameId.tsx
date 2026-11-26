@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../integrations/supabase/types";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ExternalLink, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   CATEGORIES,
@@ -15,6 +15,7 @@ import {
 } from "../lib/confronto-sheet";
 import { espnPlayerUrl } from "../lib/links";
 import { FinalizarPartida } from "@/components/FinalizarPartida";
+import { TimelineSemana, useProjecao, resolverLinhas, type ProjResult } from "@/components/TimelineSemana";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ type GameMeta = {
   status: string;
   weekNumber: number | null;
   planilhaUrl: string | null;
+  // próximo jogo da semana na ordem da home (só jogos com planilha); null no último
+  nextGameId: string | null;
   home: TeamMeta;
   away: TeamMeta;
 };
@@ -164,11 +167,27 @@ const fetchConfronto = createServerFn({ method: "GET" })
 
     const { data: game } = await sb
       .from("games")
-      .select("id, status, week_number, external_url, home_team_id, away_team_id, season_id")
+      .select("id, status, week_number, external_url, home_team_id, away_team_id, season_id, is_playoff")
       .eq("id", gameId)
       .maybeSingle();
 
     if (!game) return { ok: false, reason: "nao_encontrado" };
+
+    // Próximo jogo: mesma consulta e mesma ordem da home (index.tsx), para o "Próximo"
+    // seguir a sequência dos cards. Só entram jogos com planilha (os outros não abrem).
+    let nextGameId: string | null = null;
+    if (game.season_id && game.week_number != null) {
+      const { data: semana } = await sb
+        .from("games")
+        .select("id, external_url")
+        .eq("season_id", game.season_id)
+        .eq("week_number", game.week_number)
+        .eq("is_playoff", game.is_playoff ?? false)
+        .order("game_number_in_week" as "week_number", { ascending: true });
+      const lista = (semana ?? []) as { id: string; external_url: string | null }[];
+      const i = lista.findIndex((g) => g.id === game.id);
+      if (i >= 0) nextGameId = lista.slice(i + 1).find((g) => g.external_url)?.id ?? null;
+    }
 
     const { data: teams } = await sb
       .from("teams")
@@ -186,6 +205,7 @@ const fetchConfronto = createServerFn({ method: "GET" })
       status: game.status,
       weekNumber: game.week_number,
       planilhaUrl: game.external_url,
+      nextGameId,
       home: {
         ...(home ?? { id: game.home_team_id, name: "?", slug: null, logo_url: null, primary_color: null, sheet_nickname: null, conference: null }),
         standing: standings.get(game.home_team_id) ?? null,
@@ -256,11 +276,20 @@ function fmt(v: number | null): string {
 
 // ─── Página ──────────────────────────────────────────────────────────────────────
 
+// O "Próximo" navega para a mesma rota com outro gameId: o `key` remonta a página,
+// senão o estado (payload/polling) ficaria preso no jogo anterior.
 function ConfrontoPage() {
+  const { gameId } = Route.useParams();
+  return <ConfrontoView key={gameId} />;
+}
+
+function ConfrontoView() {
   const initial = Route.useLoaderData() as ConfrontoPayload;
   const { gameId } = Route.useParams();
 
   const [payload, setPayload] = useState<ConfrontoPayload>(initial);
+  // motor novo (status das vagas + reservas provisórios); falha = página igual à de antes
+  const proj = useProjecao(gameId);
   const [refreshing, setRefreshing] = useState(false);
   const [secsAgo, setSecsAgo] = useState(0);
 
@@ -324,12 +353,24 @@ function ConfrontoPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 md:px-8 md:py-14">
-      <Link
-        to="/"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="h-4 w-4" /> Jogos
-      </Link>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" /> Jogos
+        </Link>
+        {meta?.nextGameId && (
+          <Link
+            to="/confronto/$gameId"
+            params={{ gameId: meta.nextGameId }}
+            title="Próximo jogo da semana"
+            className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:border-[color:var(--court)] hover:bg-accent"
+          >
+            Próximo <ChevronRight className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
 
       {!meta ? (
         <p className="text-sm text-muted-foreground">Confronto não encontrado.</p>
@@ -411,11 +452,14 @@ function ConfrontoPage() {
               <CategoryTable payload={payload} />
 
               <div className="mt-8 grid gap-8">
-                <BoxScore title={meta.home.name} side={payload.data.home} espn={payload.espn} />
-                <BoxScore title={meta.away.name} side={payload.data.away} espn={payload.espn} />
+                <BoxScore title={meta.home.name} side={payload.data.home} espn={payload.espn} proj={proj} lado="home" />
+                <BoxScore title={meta.away.name} side={payload.data.away} espn={payload.espn} proj={proj} lado="away" />
               </div>
             </>
           )}
+
+          {/* Timeline semanal (motor novo) — complemento; some sozinho se a RPC falhar */}
+          <TimelineSemana gameId={meta.gameId} proj={proj} espn={payload.ok ? payload.espn : undefined} />
 
           {meta.planilhaUrl && payload.ok && (
             <a
@@ -550,11 +594,19 @@ function BoxScore({
   title,
   side,
   espn,
+  proj,
+  lado,
 }: {
   title: string;
   side: ConfrontoOriented["home"];
   espn: Record<string, string>;
+  proj: ProjResult;
+  lado: "home" | "away";
 }) {
+  // status de cada vaga (motor novo) casado pelo nome com a linha da planilha
+  const info = resolverLinhas(proj.data, lado, side.players, normalizeNick);
+  const nSubst = info.filter((i) => i?.subst).length;
+  const somaSubst = [0, 1, 2, 3, 4, 5, 6].map((c) => info.reduce((acc, i) => acc + (i?.subst ? i.subst[c] : 0), 0));
   return (
     <div>
       <h3 className="mb-2 font-display text-lg tracking-tight">{title}</h3>
@@ -583,8 +635,10 @@ function BoxScore({
           <tbody>
             {side.players.map((p, idx) => {
               const empty = p.name === null;
+              const inf = info[idx];
+              const sub = inf?.subst ?? null;
               return (
-                <tr key={idx} className={cn("border-t border-border/50", (empty || !p.played) && "opacity-40")}>
+                <tr key={idx} className={cn("border-t border-border/50", (empty || !p.played) && !sub && !inf && "opacity-40")}>
                   <td className="px-3 py-2">
                     {empty ? (
                       <span className="italic text-muted-foreground">— vaga —</span>
@@ -613,16 +667,40 @@ function BoxScore({
                         )}
                       </span>
                     )}
+                    {inf && (
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] leading-tight opacity-100">
+                        <span className={cn("flex-none rounded px-1 py-0.5 font-medium", inf.chip.cls)}>{inf.chip.texto}</span>
+                        {inf.detalhe && <span className="truncate font-medium text-foreground/75">{inf.detalhe}</span>}
+                      </span>
+                    )}
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmt(p.pts)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmt(p.reb)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmt(p.ast)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmt(p.stl)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmt(p.blk)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmt(p.three_pm)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmt(p.turnovers)}</td>
-                  <td className="truncate border-l border-border px-3 py-2 text-muted-foreground" title={p.reserve ?? undefined}>
-                    {p.reserve ?? "—"}
+                  {([p.pts, p.reb, p.ast, p.stl, p.blk, p.three_pm, p.turnovers] as (number | null)[]).map((v, c) => (
+                    <td
+                      key={c}
+                      className={cn(
+                        "px-2 py-2 text-right tabular-nums",
+                        sub && "italic text-amber-700 dark:text-amber-300",
+                        !sub && !p.played && inf && "opacity-40",
+                      )}
+                      title={sub ? "Dados do reserva (provisório)" : undefined}
+                    >
+                      {sub ? sub[c] : fmt(v)}
+                    </td>
+                  ))}
+                  <td className={cn("truncate border-l border-border px-3 py-2 text-muted-foreground", !sub && !p.played && inf && "opacity-50")} title={p.reserve ?? undefined}>
+                    {p.reserve && espn[normalizeNick(p.reserve)] ? (
+                      <a
+                        href={espnPlayerUrl(espn[normalizeNick(p.reserve)])}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Ver na ESPN"
+                        className="hover:text-[color:var(--court)] hover:underline"
+                      >
+                        {p.reserve}
+                      </a>
+                    ) : (
+                      (p.reserve ?? "—")
+                    )}
                   </td>
                 </tr>
               );
@@ -638,6 +716,17 @@ function BoxScore({
               ))}
               <td className="border-l border-border px-3 py-2" />
             </tr>
+            {nSubst > 0 && (
+              <tr className="border-t border-border/50 bg-amber-500/5 text-amber-700 dark:text-amber-300">
+                <td className="px-3 py-1.5 text-left text-xs font-medium">Com reservas provisórios ({nSubst})</td>
+                {CATEGORIES.map((c, i) => (
+                  <td key={c.key} className="px-2 py-1.5 text-right tabular-nums">
+                    {Number(side.categories[i].value) + somaSubst[i]}
+                  </td>
+                ))}
+                <td className="border-l border-border px-3 py-1.5" />
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>

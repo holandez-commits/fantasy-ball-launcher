@@ -21,6 +21,7 @@ import { LancesConferencia } from "@/components/LancesConferencia";
 import { EscalacoesDivergentes } from "@/components/EscalacoesDivergentes";
 import { SugestaoPosicaoBR, type EstadoBR } from "@/components/SugestaoPosicaoBR";
 import { buscarPosicaoBRFn } from "@/lib/bbref-posicao";
+import { MensagensTroca, type RespostaTroca } from "@/components/MensagensTroca";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -67,11 +68,13 @@ type TxRow = {
   created_at: string;
   ir_type: string | null;
   link_noticia: string | null;
+  mensagem: string | null; // mensagem do proponente (trocas)
   proposerName: string | null;
   teamName: string | null;
   playerName: string | null;
   multaResumo: string | null;
   tradeItems: TradeItemView[] | null;
+  respostas: RespostaTroca[]; // mensagens de aceite/recusa (trocas)
 };
 
 type IrRow = {
@@ -171,16 +174,32 @@ function AdminMercadoPage() {
 
       const txRes = await db
         .from("transactions")
-        .select("id, type, status, week_number, proposed_by, created_at, ir_type, link_noticia")
+        .select("id, type, status, week_number, proposed_by, created_at, ir_type, link_noticia, mensagem")
         .in("status", ["proposed", "accepted", "approved"])
         .order("created_at", { ascending: true });
       if (txRes.error) throw new Error(txRes.error.message);
       const txs = (txRes.data ?? []) as Omit<
         TxRow,
-        "proposerName" | "teamName" | "playerName" | "multaResumo" | "tradeItems"
+        "proposerName" | "teamName" | "playerName" | "multaResumo" | "tradeItems" | "respostas"
       >[];
 
       const txIds = txs.map((t) => t.id);
+      // mensagens de aceite/recusa dos times (só trocas têm aprovações)
+      const respByTx: Record<string, { team_id: string; accepted: boolean | null; mensagem: string | null }[]> = {};
+      if (txIds.length > 0) {
+        const apRes = await db
+          .from("transaction_approvals")
+          .select("transaction_id, team_id, accepted, mensagem")
+          .in("transaction_id", txIds);
+        for (const a of (apRes.data ?? []) as {
+          transaction_id: string;
+          team_id: string;
+          accepted: boolean | null;
+          mensagem: string | null;
+        }[]) {
+          (respByTx[a.transaction_id] ??= []).push(a);
+        }
+      }
       let items: Item[] = [];
       if (txIds.length > 0) {
         const itRes = await db
@@ -371,7 +390,7 @@ function AdminMercadoPage() {
       const enrich = (
         t: Omit<
           TxRow,
-          "proposerName" | "teamName" | "playerName" | "multaResumo" | "tradeItems"
+          "proposerName" | "teamName" | "playerName" | "multaResumo" | "tradeItems" | "respostas"
         >,
       ): TxRow => {
         const myItems = items.filter((i) => i.transaction_id === t.id);
@@ -383,6 +402,12 @@ function AdminMercadoPage() {
           teamName: fromTeam ? teamName[fromTeam] ?? null : null,
           playerName: playerItem?.player_id ? playerName[playerItem.player_id] ?? null : null,
           multaResumo: t.type === "release" ? multaByTx[t.id] ?? "sem multa" : null,
+          respostas:
+            t.type === "trade"
+              ? (respByTx[t.id] ?? [])
+                  .filter((a) => a.mensagem)
+                  .map((a) => ({ team: teamName[a.team_id] ?? "—", accepted: a.accepted, mensagem: a.mensagem }))
+              : [],
           tradeItems:
             t.type === "trade"
               ? myItems.map((i) => ({
@@ -783,13 +808,16 @@ function AdminMercadoPage() {
         )}
       </div>
       {t.type === "trade" && t.tradeItems ? (
-        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-          {t.tradeItems.map((it, i) => (
-            <li key={i}>
-              {it.label}: {it.fromName} → {it.toName}
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            {t.tradeItems.map((it, i) => (
+              <li key={i}>
+                {it.label}: {it.fromName} → {it.toName}
+              </li>
+            ))}
+          </ul>
+          <MensagensTroca proposerTeam={t.proposerName} mensagem={t.mensagem} respostas={t.respostas} />
+        </>
       ) : (
         <div className="mt-0.5 text-xs text-muted-foreground">
           {t.teamName ?? "—"}

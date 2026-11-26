@@ -24,8 +24,10 @@ import { fetchContractMap, fmtContract } from "@/lib/contracts";
 import { MarketStateBanner } from "@/components/MarketStateBanner";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { MensagemTrocaBox, MensagensTroca, type RespostaTroca } from "@/components/MensagensTroca";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -89,6 +91,9 @@ type TradeView = {
   awaiting: string[]; // times que ainda não aceitaram
   items: TradeItemView[];
   deadline: string | null;
+  proposerTeam: string | null; // time de quem propôs
+  mensagem: string | null; // mensagem do proponente
+  respostas: RespostaTroca[]; // mensagens de aceite/recusa dos outros times
 };
 
 // Mesma regra do banco (solicitar_ir): http(s)://algo.algo, sem espaços, até 500 caracteres.
@@ -121,13 +126,17 @@ function MercadoPage() {
   const [irLink, setIrLink] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [busyTrade, setBusyTrade] = useState<string | null>(null);
+  // edição do prazo de aceite (só o proponente): id da troca + valor do datetime-local
+  const [prazoEdit, setPrazoEdit] = useState<{ id: string; value: string } | null>(null);
+  // mensagem digitada no diálogo de aceitar/recusar, por troca e ação ("<id>:s" aceite, "<id>:n" recusa)
+  const [respMsg, setRespMsg] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const loadTrades = useCallback(async () => {
     if (!teamId) return;
     const trRes = await db
       .from("transactions")
-      .select("id, status, proposed_by, accept_deadline, created_at")
+      .select("id, status, proposed_by, accept_deadline, created_at, mensagem")
       .eq("type", "trade")
       .in("status", ["proposed", "accepted"])
       .order("created_at", { ascending: false });
@@ -136,6 +145,7 @@ function MercadoPage() {
       status: string;
       proposed_by: string | null;
       accept_deadline: string | null;
+      mensagem: string | null;
     }[];
     if (trs.length === 0) {
       setTrades([]);
@@ -149,7 +159,7 @@ function MercadoPage() {
         .in("transaction_id", ids),
       db
         .from("transaction_approvals")
-        .select("transaction_id, team_id, accepted")
+        .select("transaction_id, team_id, gm_id, accepted, mensagem")
         .in("transaction_id", ids),
     ]);
     const items = (itRes.data ?? []) as {
@@ -165,7 +175,9 @@ function MercadoPage() {
     const approvals = (apRes.data ?? []) as {
       transaction_id: string;
       team_id: string;
+      gm_id: string | null;
       accepted: boolean | null;
+      mensagem: string | null;
     }[];
 
     const teamIds = [
@@ -238,6 +250,14 @@ function MercadoPage() {
           .filter((a) => a.accepted !== true)
           .map((a) => teamName[a.team_id] ?? "—"),
         deadline: t.accept_deadline,
+        proposerTeam: (() => {
+          const pa = myApprovals.find((a) => a.gm_id && a.gm_id === t.proposed_by);
+          return pa ? (teamName[pa.team_id] ?? null) : null;
+        })(),
+        mensagem: t.mensagem,
+        respostas: myApprovals
+          .filter((a) => a.mensagem)
+          .map((a) => ({ team: teamName[a.team_id] ?? "—", accepted: a.accepted, mensagem: a.mensagem })),
         items: myItems.map((i) => ({
           label:
             i.asset_type === "player"
@@ -464,11 +484,49 @@ function MercadoPage() {
   async function aceitarTroca(txId: string, aceitar: boolean) {
     setBusyTrade(txId);
     setResult(null);
-    const { data, error } = await callRpc("aceitar_troca", { _tx_id: txId, _aceitar: aceitar });
+    const key = `${txId}:${aceitar ? "s" : "n"}`;
+    const { data, error } = await callRpc("aceitar_troca", {
+      _tx_id: txId,
+      _aceitar: aceitar,
+      _mensagem: (respMsg[key] ?? "").trim() || null,
+    });
     setBusyTrade(null);
     if (error) setResult({ ok: false, message: error.message });
     else {
+      setRespMsg((m) => {
+        const next = { ...m };
+        delete next[key];
+        return next;
+      });
       setResult({ ok: true, message: typeof data === "string" ? data : "Registrado." });
+      void load();
+    }
+  }
+
+  function toLocalInput(iso: string): string {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  async function salvarPrazo() {
+    if (!prazoEdit) return;
+    const novo = new Date(prazoEdit.value);
+    if (Number.isNaN(novo.getTime())) {
+      setResult({ ok: false, message: "Informe uma data e hora válidas." });
+      return;
+    }
+    setBusyTrade(prazoEdit.id);
+    setResult(null);
+    const { data, error } = await callRpc("alterar_prazo_troca", {
+      _tx_id: prazoEdit.id,
+      _novo_prazo: novo.toISOString(),
+    });
+    setBusyTrade(null);
+    if (error) setResult({ ok: false, message: error.message });
+    else {
+      setResult({ ok: true, message: typeof data === "string" ? data : "Prazo alterado." });
+      setPrazoEdit(null);
       void load();
     }
   }
@@ -595,6 +653,11 @@ function MercadoPage() {
                           </div>
                         ))}
                       </div>
+                      <MensagensTroca
+                        proposerTeam={t.proposerTeam}
+                        mensagem={t.mensagem}
+                        respostas={t.respostas}
+                      />
                       {t.deadline && t.status === "proposed" && (
                         <p className="mt-2 text-xs text-muted-foreground">
                           Prazo de aceite:{" "}
@@ -615,7 +678,44 @@ function MercadoPage() {
                             })}
                           </span>
                           {new Date(t.deadline).getTime() < Date.now() && " (vencido)"}
+                          {t.isProposer && prazoEdit?.id !== t.id && (
+                            <button
+                              type="button"
+                              className="ml-2 underline underline-offset-2 hover:text-foreground"
+                              onClick={() =>
+                                setPrazoEdit({ id: t.id, value: toLocalInput(t.deadline as string) })
+                              }
+                            >
+                              alterar prazo
+                            </button>
+                          )}
                         </p>
+                      )}
+                      {t.isProposer && t.status === "proposed" && prazoEdit?.id === t.id && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Input
+                            type="datetime-local"
+                            aria-label="Novo prazo de aceite"
+                            value={prazoEdit.value}
+                            onChange={(e) => setPrazoEdit({ id: t.id, value: e.target.value })}
+                            className="h-8 w-56 text-sm"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => void salvarPrazo()}
+                            disabled={busyTrade === t.id}
+                          >
+                            {busyTrade === t.id ? "..." : "Salvar prazo"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPrazoEdit(null)}
+                            disabled={busyTrade === t.id}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
                       )}
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-xs text-muted-foreground">
@@ -631,7 +731,18 @@ function MercadoPage() {
                               <ConfirmButton
                                 size="sm"
                                 title="Aceitar esta troca?"
-                                description={<p>Confira os itens da proposta antes de confirmar o aceite.</p>}
+                                description={
+                                  <>
+                                    <p>Confira os itens da proposta antes de confirmar o aceite.</p>
+                                    <MensagemTrocaBox
+                                      id={`msg-aceite-${t.id}`}
+                                      label="Mensagem (opcional)"
+                                      placeholder="Ex.: fechado, valeu!"
+                                      value={respMsg[`${t.id}:s`] ?? ""}
+                                      onChange={(v) => setRespMsg((m) => ({ ...m, [`${t.id}:s`]: v }))}
+                                    />
+                                  </>
+                                }
                                 confirmLabel="Aceitar troca"
                                 onConfirm={() => aceitarTroca(t.id, true)}
                                 disabled={busyTrade === t.id}
@@ -642,7 +753,18 @@ function MercadoPage() {
                                 size="sm"
                                 variant="outline"
                                 title="Recusar esta troca?"
-                                description={<p>A proposta será recusada.</p>}
+                                description={
+                                  <>
+                                    <p>A proposta será recusada.</p>
+                                    <MensagemTrocaBox
+                                      id={`msg-recusa-${t.id}`}
+                                      label="Mensagem (opcional)"
+                                      placeholder="Ex.: não rola por esse valor, mas topo se..."
+                                      value={respMsg[`${t.id}:n`] ?? ""}
+                                      onChange={(v) => setRespMsg((m) => ({ ...m, [`${t.id}:n`]: v }))}
+                                    />
+                                  </>
+                                }
                                 confirmLabel="Recusar troca"
                                 onConfirm={() => aceitarTroca(t.id, false)}
                                 disabled={busyTrade === t.id}

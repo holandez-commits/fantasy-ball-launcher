@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MensagemTrocaBox } from "@/components/MensagensTroca";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -314,6 +315,7 @@ function TrocarPage() {
   const [otherIds, setOtherIds] = useState<string[]>([]);
   const [selected, setSelected] = useState<Record<string, Sel>>({});
   const [deadline, setDeadline] = useState<string>(defaultDeadline());
+  const [mensagem, setMensagem] = useState<string>(""); // explicação da proposta (opcional, até 300)
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -609,12 +611,14 @@ function TrocarPage() {
       _itens: built.itens,
       _week: null,
       _accept_deadline: deadlineISO,
+      _mensagem: mensagem.trim() || null,
     });
     setSubmitting(false);
     if (error) {
       setResult({ ok: false, message: error.message });
     } else {
       setSelected({});
+      setMensagem("");
       setContraInfo(null);
       setDone(snapshot);
       // a confirmação ocupa o lugar do formulário: sobe pro topo pra ficar à vista
@@ -627,6 +631,7 @@ function TrocarPage() {
     setResult(null);
     setOtherIds([]);
     setSelected({});
+    setMensagem("");
     setContraInfo(null);
     comApplied.current = true;
     void load();
@@ -864,6 +869,19 @@ function TrocarPage() {
                   <AlertDescription>{result.message}</AlertDescription>
                 </Alert>
               )}
+              <div className="mb-4">
+                <MensagemTrocaBox
+                  id="mensagem-troca"
+                  label={contra ? "Mensagem da contra-proposta (opcional)" : "Mensagem para os outros times (opcional)"}
+                  placeholder={
+                    contra
+                      ? 'Ex.: "troquei o jogador X pela pick Y, o que acha?"'
+                      : 'Ex.: "preciso de um armador, ofereço pick de 1ª em troca"'
+                  }
+                  value={mensagem}
+                  onChange={setMensagem}
+                />
+              </div>
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="space-y-1">
                   <Label htmlFor="deadline" className="text-sm">
@@ -910,6 +928,11 @@ function TrocarPage() {
                           </p>
                         ))}
                         <p>Prazo de aceite: {fmtDeadline(deadline)}.</p>
+                        {mensagem.trim() && (
+                          <p>
+                            Sua mensagem: <span className="whitespace-pre-line">{mensagem.trim()}</span>
+                          </p>
+                        )}
                       </>
                     }
                     confirmLabel="Enviar proposta"
