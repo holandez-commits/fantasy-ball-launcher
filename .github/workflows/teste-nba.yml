@@ -1,0 +1,17 @@
+# Teste: o GitHub Actions consegue acessar a NBA.com? Nao grava nada, nao usa segredos.
+name: teste-nba
+on:
+  workflow_dispatch:
+  push:
+    branches: [teste/github-actions-nba]
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acesso a NBA.com
+        run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
+          echo "IP de saida: $(curl -s -m 10 https://api.ipify.org)"
+          curl -s -m 25 -o /dev/null -w "cdn scoreboard: %{http_code} (%{size_download} bytes)\n" -H "User-Agent: $UA" "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json" || echo "cdn scoreboard: falhou"
+          curl -s -m 25 -o /dev/null -w "stats scoreboardv3: %{http_code} (%{size_download} bytes)\n" -H "User-Agent: $UA" -H "Referer: https://www.nba.com/" -H "Origin: https://www.nba.com" "https://stats.nba.com/stats/scoreboardv3?GameDate=2026-11-23&LeagueID=00" || echo "stats scoreboardv3: falhou"
+          curl -s -m 25 -o /dev/null -w "cdn boxscore: %{http_code} (%{size_download} bytes)\n" -H "User-Agent: $UA" "https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022500001.json" || echo "cdn boxscore: falhou"
