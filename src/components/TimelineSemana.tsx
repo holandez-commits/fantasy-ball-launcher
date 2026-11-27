@@ -448,7 +448,7 @@ export type LinhaInfo = {
   chip: { texto: string; cls: string };
   detalhe: string | null;
   /** pts, reb, ast, stl, blk, 3pm, to que o motor atribui à vaga (reserva cobrindo), quando diferem da planilha */
-  subst: number[] | null;
+  subst: (number | null)[] | null;
   /** subst − o que a planilha já soma nessa linha (nulo = 0): é o que entra no total "com provisórios" */
   delta: number[] | null;
 };
@@ -502,6 +502,11 @@ export function resolverLinhas(
     const info = FONTE_INFO[s.fonte];
     const tit = s.titular ? proj.jogadores[s.titular] : null;
     const cobre = !!s.usado && s.usado !== s.titular && (s.fonte === "reserva_provisorio" || s.fonte === "reserva");
+    // A planilha pode estar contando um jogador que o motor já usou em OUTRA vaga (ex.: o titular do SG
+    // que o motor colocou como reserva do PG). Nesse caso o jogo dele conta uma vez só, onde o motor mandar.
+    const usadoNome = nome(s.usado);
+    const contaEmOutraVaga = slots.find((o, i) => i !== k && nome(o.usado) && norm(nome(o.usado)!) === n);
+    const duplicado = l.pts !== null && !!contaEmOutraVaga && !(usadoNome && norm(usadoNome) === n);
     let detalhe: string | null = null;
     if (s.fonte === "reserva_provisorio") {
       const prox = proximoJogo(tit);
@@ -509,17 +514,28 @@ export function resolverLinhas(
     } else if (s.fonte === "reserva") {
       detalhe = `${nome(s.usado) ?? "reserva"} cobre (definitivo)`;
     } else if (s.fonte === "pendente") {
-      const prox = proximoJogo(tit);
-      detalhe = prox ? `próx.: ${prox}` : null;
+      if (duplicado && contaEmOutraVaga) {
+        const res = s.reserva ? proj.jogadores[s.reserva] : null;
+        const prox = proximoJogo(res);
+        detalhe = `${nome(s.titular) ?? "titular"} já conta no ${contaEmOutraVaga.pos}${
+          res ? ` · aguarda ${res.nome}${prox ? ` (${prox})` : ""}` : ""
+        }`;
+      } else {
+        const prox = proximoJogo(tit);
+        detalhe = prox ? `próx.: ${prox}` : null;
+      }
     }
-    // O motor manda na vaga quando um reserva cobre: se a linha da planilha está vazia ou mostra
-    // outro jogador (ex.: o titular que o motor já usou em outra vaga), valem os números do motor
-    // e só a diferença contra a planilha entra no total — senão o mesmo jogo contaria duas vezes.
-    const usadoNome = nome(s.usado);
-    const motorManda = cobre && (l.pts === null || (!!usadoNome && norm(usadoNome) !== n));
-    const subst = motorManda ? [s.pts, s.reb, s.ast, s.stl, s.blk, s.tpm, s.tov] : null;
+    // O motor manda na vaga quando um reserva cobre ou quando o jogador da planilha já conta em outra
+    // vaga: valem os números do motor (ou "—" se a vaga ainda não tem jogo) e só a diferença contra
+    // a planilha entra no total — senão o mesmo jogo contaria duas vezes.
+    const motorManda = (cobre && (l.pts === null || (!!usadoNome && norm(usadoNome) !== n))) || duplicado;
+    const subst: (number | null)[] | null = motorManda
+      ? s.usado
+        ? [s.pts, s.reb, s.ast, s.stl, s.blk, s.tpm, s.tov]
+        : [null, null, null, null, null, null, null]
+      : null;
     const planilha = [l.pts, l.reb, l.ast, l.stl, l.blk, l.three_pm, l.turnovers];
-    const delta = subst ? subst.map((v, c) => v - (planilha[c] ?? 0)) : null;
+    const delta = subst ? subst.map((v, c) => (v ?? 0) - (planilha[c] ?? 0)) : null;
     return { chip: { texto: info.texto, cls: info.cls }, detalhe, subst, delta };
   });
 }

@@ -302,7 +302,7 @@ function calcParcial(data: ConfrontoOriented, proj: ProjResult): Parcial | null 
   const lado = (side: ConfrontoOriented["home"], l: "home" | "away") => {
     const info = resolverLinhas(proj.data, l, side.players, normalizeNick);
     return {
-      n: info.filter((i) => i?.subst).length,
+      n: info.filter((i) => i?.subst?.some((v) => v !== null)).length,
       soma: CATEGORIES.map((_, c) => info.reduce((acc, i) => acc + (i?.delta ? i.delta[c] : 0), 0)),
     };
   };
@@ -785,7 +785,7 @@ function BoxScore({
 }) {
   // status de cada vaga (motor novo) casado pelo nome com a linha da planilha
   const info = resolverLinhas(proj.data, lado, side.players, normalizeNick);
-  const nSubst = info.filter((i) => i?.subst).length;
+  const nSubst = info.filter((i) => i?.subst?.some((v) => v !== null)).length;
   const somaSubst = [0, 1, 2, 3, 4, 5, 6].map((c) => info.reduce((acc, i) => acc + (i?.delta ? i.delta[c] : 0), 0));
   return (
     <div>
@@ -864,7 +864,7 @@ function BoxScore({
                       )}
                       title={sub ? "Dados do reserva (provisório)" : undefined}
                     >
-                      {sub ? sub[c] : fmt(v)}
+                      {sub ? fmt(sub[c]) : fmt(v)}
                     </td>
                   ))}
                   <td className={cn("truncate border-l border-border px-3 py-2 text-muted-foreground", !sub && !p.played && inf && "opacity-50")} title={p.reserve ?? undefined}>
